@@ -1,0 +1,18 @@
+services:
+  publisher:
+    build: .
+    ports:
+      - "8000:8000"   # Web API
+      - "6080:6080"   # noVNC 可视化人工接管
+    environment:
+      - PUBLISHER_ADMIN_USERNAME=admin
+      - PUBLISHER_ADMIN_PASSWORD=admin
+      - PUBLISHER_SESSION_SECRET=change-me-please
+      - HEADLESS=true
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+    volumes:
+      - ./data:/data
+      - ./uploads:/uploads
+      - ./logs:/logs
+    restart: unless-stopped

@@ -1,0 +1,31 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+
+# 数据与敏感信息（文档第 53 节：禁止 Git 提交）
+data/
+uploads/
+logs/
+*.db
+*.db-wal
+*.db-shm
+.env
+
+# 浏览器 storage_state（含登录态，禁止提交）
+storage_state/
+*.storage_state.json
+
+# Node
+node_modules/
+web/dist/
+
+# IDE
+.idea/
+.vscode/
+.DS_Store
