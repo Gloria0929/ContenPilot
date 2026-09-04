@@ -29,54 +29,54 @@ def client():
 
 
 def _login(client) -> None:
-    r = client.post("/auth/login", json={"username": "admin", "password": "secret123"})
+    r = client.post("/api/auth/login", json={"username": "admin", "password": "secret123"})
     assert r.status_code == 200
 
 
 def test_unauthorized_requires_login(client):
-    r = client.get("/articles")
+    r = client.get("/api/articles")
     assert r.status_code == 401
 
 
 def test_login_and_access(client):
     _login(client)
-    r = client.get("/auth/whoami")
+    r = client.get("/api/auth/whoami")
     assert r.status_code == 200
     assert r.json()["username"] == "admin"
 
 
 def test_wrong_password_rejected(client):
-    r = client.post("/auth/login", json={"username": "admin", "password": "bad"})
+    r = client.post("/api/auth/login", json={"username": "admin", "password": "bad"})
     assert r.status_code == 401
 
 
 def test_full_publish_flow_with_floor(client):
     _login(client)
     # 创建文章
-    r = client.post("/articles", json={"title": "t", "content": "c"})
+    r = client.post("/api/articles", json={"title": "t", "content": "c"})
     assert r.status_code == 200
     aid = r.json()["id"]
-    client.patch(f"/articles/{aid}", json={"status": "ready"})
+    client.patch(f"/api/articles/{aid}", json={"status": "ready"})
 
     # 创建账号
-    r = client.post("/accounts", json={"key": "xhs", "platform": "xiaohongshu", "name": "官方"})
+    r = client.post("/api/accounts", json={"key": "xhs", "platform": "xiaohongshu", "name": "官方"})
     acc = r.json()["id"]
 
     # 设置 account 层 floor (always + is_floor)
-    r = client.post("/policies", json={
+    r = client.post("/api/policies", json={
         "scope_type": "account", "scope_id": acc,
         "review_mode": "always", "publish_mode": "automatic", "is_floor": True,
     })
     assert r.status_code == 200
 
     # 解析：应 always + floor_locked
-    r = client.get(f"/policies/resolve", params={"account_id": acc, "article_id": aid})
+    r = client.get(f"/api/policies/resolve", params={"account_id": acc, "article_id": aid})
     assert r.status_code == 200
     assert r.json()["review_policy"] == "always"
     assert r.json()["is_floor_locked"] is True
 
     # 发布：应创建 waiting_review 任务
-    r = client.post("/publish", json={
+    r = client.post("/api/publish", json={
         "article_id": aid, "platforms": ["xiaohongshu"],
         "account_ids": {"xiaohongshu": acc},
     })
@@ -91,16 +91,16 @@ def test_full_publish_flow_with_floor(client):
 def test_publish_idempotent_non_terminal(client):
     """同一组合非终态任务只创建一次（文档 §30）。"""
     _login(client)
-    r = client.post("/articles", json={"title": "t", "content": "c"})
+    r = client.post("/api/articles", json={"title": "t", "content": "c"})
     aid = r.json()["id"]
-    client.patch(f"/articles/{aid}", json={"status": "ready"})
-    r = client.post("/accounts", json={"key": "a1", "platform": "juejin"})
+    client.patch(f"/api/articles/{aid}", json={"status": "ready"})
+    r = client.post("/api/accounts", json={"key": "a1", "platform": "juejin"})
     acc = r.json()["id"]
 
-    p1 = client.post("/publish", json={
+    p1 = client.post("/api/publish", json={
         "article_id": aid, "platforms": ["juejin"], "account_ids": {"juejin": acc},
     })
-    p2 = client.post("/publish", json={
+    p2 = client.post("/api/publish", json={
         "article_id": aid, "platforms": ["juejin"], "account_ids": {"juejin": acc},
     })
     t1 = [t["id"] for t in p1.json()]
@@ -111,26 +111,26 @@ def test_publish_idempotent_non_terminal(client):
 def test_article_delete(client):
     """无关联任务的文章可删除；已关联发布任务的拒绝删除（保留历史归因）。"""
     _login(client)
-    aid = client.post("/articles", json={"title": "del", "content": "c"}).json()["id"]
-    assert client.delete(f"/articles/{aid}").status_code == 200
-    assert client.get(f"/articles/{aid}").status_code == 404
+    aid = client.post("/api/articles", json={"title": "del", "content": "c"}).json()["id"]
+    assert client.delete(f"/api/articles/{aid}").status_code == 200
+    assert client.get(f"/api/articles/{aid}").status_code == 404
 
-    aid2 = client.post("/articles", json={"title": "keep", "content": "c"}).json()["id"]
-    client.patch(f"/articles/{aid2}", json={"status": "ready"})
+    aid2 = client.post("/api/articles", json={"title": "keep", "content": "c"}).json()["id"]
+    client.patch(f"/api/articles/{aid2}", json={"status": "ready"})
     acc = client.post(
-        "/accounts", json={"key": "del-acc", "platform": "juejin"}
+        "/api/accounts", json={"key": "del-acc", "platform": "juejin"}
     ).json()["id"]
-    client.post("/publish", json={
+    client.post("/api/publish", json={
         "article_id": aid2, "platforms": ["juejin"],
         "account_ids": {"juejin": acc},
     })
-    assert client.delete(f"/articles/{aid2}").status_code == 400
+    assert client.delete(f"/api/articles/{aid2}").status_code == 400
 
 
 def test_article_delete_with_versions(client):
     """删除带版本的文章（曾因 ORM flush 顺序触发外键 500）。"""
     _login(client)
-    aid = client.post("/articles", json={"title": "ver", "content": "c"}).json()["id"]
+    aid = client.post("/api/articles", json={"title": "ver", "content": "c"}).json()["id"]
     from publisher.database import SessionLocal
     from publisher.services.article_service import ArticleService
 
@@ -139,15 +139,15 @@ def test_article_delete_with_versions(client):
         ArticleService(s).create_version(aid, "cnblogs", "t", "c")
     finally:
         s.close()
-    assert client.delete(f"/articles/{aid}").status_code == 200
-    assert client.get(f"/articles/{aid}").status_code == 404
+    assert client.delete(f"/api/articles/{aid}").status_code == 200
+    assert client.get(f"/api/articles/{aid}").status_code == 404
 
 
 def test_account_delete_with_browser_session(client):
     """删除带残留浏览器会话的账号（曾因 ORM flush 顺序触发外键 500）。"""
     _login(client)
     acc = client.post(
-        "/accounts", json={"key": "bs-acc", "platform": "cnblogs"}
+        "/api/accounts", json={"key": "bs-acc", "platform": "cnblogs"}
     ).json()["id"]
     from publisher.database import SessionLocal
     from publisher.models import BrowserSession
@@ -158,54 +158,54 @@ def test_account_delete_with_browser_session(client):
         s.commit()
     finally:
         s.close()
-    assert client.delete(f"/accounts/{acc}").status_code == 200
-    assert client.get(f"/accounts/{acc}").status_code == 404
+    assert client.delete(f"/api/accounts/{acc}").status_code == 200
+    assert client.get(f"/api/accounts/{acc}").status_code == 404
 
 
 def test_task_delete(client):
     """终态任务可删除（连带 Review/日志）；非终态任务拒绝删除。"""
     _login(client)
-    r = client.post("/articles", json={"title": "td", "content": "c"})
+    r = client.post("/api/articles", json={"title": "td", "content": "c"})
     aid = r.json()["id"]
-    client.patch(f"/articles/{aid}", json={"status": "ready"})
+    client.patch(f"/api/articles/{aid}", json={"status": "ready"})
     acc = client.post(
-        "/accounts", json={"key": "td-acc", "platform": "juejin"}
+        "/api/accounts", json={"key": "td-acc", "platform": "juejin"}
     ).json()["id"]
-    tid = client.post("/publish", json={
+    tid = client.post("/api/publish", json={
         "article_id": aid, "platforms": ["juejin"],
         "account_ids": {"juejin": acc},
     }).json()[0]["id"]
 
     # 非终态：拒绝
-    assert client.delete(f"/tasks/{tid}").status_code == 400
+    assert client.delete(f"/api/tasks/{tid}").status_code == 400
     # 取消 → 终态：可删
-    client.post(f"/tasks/{tid}/cancel")
-    assert client.delete(f"/tasks/{tid}").status_code == 200
-    assert client.get(f"/tasks/{tid}").status_code == 404
-    assert client.delete(f"/tasks/{tid}").status_code == 404
+    client.post(f"/api/tasks/{tid}/cancel")
+    assert client.delete(f"/api/tasks/{tid}").status_code == 200
+    assert client.get(f"/api/tasks/{tid}").status_code == 404
+    assert client.delete(f"/api/tasks/{tid}").status_code == 404
 
 
 def test_ai_cannot_relax_floor_locked(client):
     """普通 API Key（无 override 权限）不能把 floor-locked always 调松。"""
     _login(client)
-    r = client.post("/articles", json={"title": "t", "content": "c"})
+    r = client.post("/api/articles", json={"title": "t", "content": "c"})
     aid = r.json()["id"]
-    client.patch(f"/articles/{aid}", json={"status": "ready"})
-    r = client.post("/accounts", json={"key": "xhs2", "platform": "xiaohongshu"})
+    client.patch(f"/api/articles/{aid}", json={"status": "ready"})
+    r = client.post("/api/accounts", json={"key": "xhs2", "platform": "xiaohongshu"})
     acc = r.json()["id"]
-    client.post("/policies", json={
+    client.post("/api/policies", json={
         "scope_type": "account", "scope_id": acc,
         "review_mode": "always", "publish_mode": "automatic", "is_floor": True,
     })
 
     # 创建无 override 权限的 API Key
-    r = client.post("/auth/api_keys", params={"name": "nooverride", "allow_override_review": False})
+    r = client.post("/api/auth/api_keys", params={"name": "nooverride", "allow_override_review": False})
     key = r.json()["key"]
 
     # 用「纯 API Key」（无 session cookie，模拟 AI Skill）尝试 review_override=never，
     # 应被 403 拒绝——session 优先于 API Key，故必须新建不带 cookie 的 client。
     with TestClient(app) as ai_client:  # 不登录，无 session cookie
-        r = ai_client.post("/publish", headers={"Authorization": f"Bearer {key}"}, json={
+        r = ai_client.post("/api/publish", headers={"Authorization": f"Bearer {key}"}, json={
             "article_id": aid, "platforms": ["xiaohongshu"],
             "account_ids": {"xiaohongshu": acc}, "review_override": "never",
         })
