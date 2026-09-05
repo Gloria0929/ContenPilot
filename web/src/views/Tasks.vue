@@ -47,6 +47,7 @@
           <div class="row-actions">
             <el-button
               v-if="scope.row.status === 'pending'"
+              text
               type="primary"
               @click="act(scope.row.id, 'resume', '发布')"
               >发布</el-button
@@ -69,6 +70,7 @@
               "
               type="danger"
               plain
+              text
               @click="act(scope.row.id, 'cancel', '取消')"
               >取消</el-button
             >

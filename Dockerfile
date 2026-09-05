@@ -1,3 +1,12 @@
+# ---- 阶段一：构建前端 ----
+FROM node:20-slim AS web-builder
+WORKDIR /web
+COPY web/package.json web/package-lock.json ./
+RUN npm ci
+COPY web ./
+RUN npm run build
+
+# ---- 阶段二：后端镜像 ----
 FROM python:3.12-slim
 
 ENV PYTHONUNBUFFERED=1 \
@@ -34,6 +43,9 @@ WORKDIR /app
 COPY pyproject.toml ./
 COPY src ./src
 RUN pip install --no-cache-dir .
+
+# 前端构建产物（app.py 按 cwd/web/dist 探测托管）
+COPY --from=web-builder /web/dist ./web/dist
 
 # 安装 Playwright Chromium
 RUN python -m playwright install --with-deps chromium
