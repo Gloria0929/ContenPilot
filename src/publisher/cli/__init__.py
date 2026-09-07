@@ -395,8 +395,9 @@ def publish(
             if not acc:
                 console.print(f"[red]account {account} not found[/red]")
                 raise typer.Exit(1)
-            target_platforms = platforms or [acc.platform]
-            account_ids = {p: acc.id for p in target_platforms}
+            # 未指定平台时使用账号所属平台（并同步到 platforms，否则不会创建任务）
+            platforms = platforms or [acc.platform]
+            account_ids = {p: acc.id for p in platforms}
         elif platforms and len(platforms) == 1:
             # 未指定账号：该平台唯一账号时自动绑定
             platform_accounts = [
@@ -404,6 +405,13 @@ def publish(
             ]
             if len(platform_accounts) == 1:
                 account_ids = {platforms[0]: platform_accounts[0].id}
+
+        if not platforms:
+            console.print(
+                "[red]缺少平台：请指定平台参数（publisher publish <文章id> <平台>），"
+                "或用 --account 指定账号以使用其所属平台[/red]"
+            )
+            raise typer.Exit(1)
 
         tasks = svc.create_tasks(
             article_id, platforms,

@@ -73,6 +73,49 @@ def redact_json(metadata: object) -> str:
 
 # ---- 加密（对称，用于加密存储敏感信息）----
 
+_LEGACY_DEFAULT_KEY = base64.urlsafe_b64encode(
+    hashlib.sha256(b"publisher-default-key-v1").digest()
+)
+
+
+def _key_file_path():
+    from ..config import settings
+
+    return settings.data_dir / "secret.key"
+
+
+def _load_or_create_key_file() -> bytes | None:
+    """无显式密钥时：在数据目录生成并持久化一个随机密钥文件。
+
+    密钥只生成一次，之后复用，保证加密数据跨重启可解密；
+    文件权限 600（密钥视同密码，仅当前用户可读）。
+    返回 None 表示无法读写数据目录（如只读环境），由调用方回退。
+    """
+    import secrets
+
+    path = _key_file_path()
+    try:
+        if path.exists():
+            raw = path.read_text().strip()
+            if raw:
+                key = raw.encode()
+                if len(key) < 32:
+                    key = base64.urlsafe_b64encode(hashlib.sha256(key).digest())
+                return key
+        from ..config import settings
+
+        settings.ensure_dirs()
+        key = base64.urlsafe_b64encode(secrets.token_bytes(32))
+        path.write_text(key.decode())
+        try:
+            path.chmod(0o600)
+        except OSError:
+            pass
+        return key
+    except OSError:
+        return None
+
+
 def _fernet():
     from cryptography.fernet import Fernet
 
@@ -82,10 +125,9 @@ def _fernet():
         if len(key) < 32:
             key = base64.urlsafe_b64encode(hashlib.sha256(key).digest())
     else:
-        # 无显式密钥时，用数据目录派生一个稳定密钥（仅个人本地部署可接受）
-        key = base64.urlsafe_b64encode(
-            hashlib.sha256(b"publisher-default-key-v1").digest()
-        )
+        # 数据目录下生成/复用随机密钥文件；不可用时回退内置默认密钥
+        # （仅本地临时环境，不具备真实保密性）
+        key = _load_or_create_key_file() or _LEGACY_DEFAULT_KEY
     return Fernet(key)
 
 
@@ -95,6 +137,13 @@ def encrypt(plaintext: str) -> str:
 
 def decrypt(ciphertext: str) -> str:
     return _fernet().decrypt(ciphertext.encode()).decode()
+
+
+def decrypt_legacy(ciphertext: str) -> str:
+    """用旧内置默认密钥解密（仅用于历史数据迁移，勿用于新数据）。"""
+    from cryptography.fernet import Fernet
+
+    return Fernet(_LEGACY_DEFAULT_KEY).decrypt(ciphertext.encode()).decode()
 
 
 def encrypt_json(obj: object) -> str:

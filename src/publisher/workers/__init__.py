@@ -179,6 +179,7 @@ class Worker:
             task.finished_at = _utcnow()
             session.commit()
             logs.log("publish_failed", task.id, level="error", message=str(exc))
+            emitter.task_status(task.id, TaskStatus.failed.value)
             self._release_lock(session, accounts, task)
 
     @staticmethod

@@ -181,13 +181,16 @@ def set_policy(
 ):
     """按 scope 设置策略。review_mode/publish_mode 为 null 表示删除（跟随上级）。"""
     svc = PolicyService(db)
-    row = svc.set_policy(
-        payload.get("scope_type"),
-        payload.get("scope_id"),
-        payload.get("review_mode"),
-        payload.get("publish_mode"),
-        payload.get("is_floor", False),
-    )
+    try:
+        row = svc.set_policy(
+            payload.get("scope_type"),
+            payload.get("scope_id"),
+            payload.get("review_mode"),
+            payload.get("publish_mode"),
+            payload.get("is_floor", False),
+        )
+    except ValueError as e:
+        raise HTTPException(400, str(e))
     return {"ok": True, "row_id": row.id if row else None}
 
 
@@ -323,7 +326,12 @@ def refresh_review(
         "review_refreshed", task.id,
         message=f"review #{r.id} rebound to version {r.article_version_id}",
     )
-    return {"ok": True, "article_version_id": r.article_version_id, "status": r.status}
+    return {
+        "ok": True,
+        "article_version_id": r.article_version_id,
+        "version": latest.version if latest else None,
+        "status": r.status,
+    }
 
 
 @router.post("/reviews/{review_id}/approve")
@@ -335,7 +343,8 @@ def approve_review(
     try:
         review = svc.approve(review_id, auth_to_requester(auth), (payload.comment if payload else None))
     except ValueError as e:
-        raise HTTPException(404, str(e))
+        # 「not found」→ 404；状态不允许操作 → 400
+        raise HTTPException(404 if "not found" in str(e) else 400, str(e))
     # 任务流转（automatic→queued / manual→pending）已在 ReviewService.approve 内处理
     return review
 
@@ -349,7 +358,8 @@ def reject_review(
     try:
         return svc.reject(review_id, auth_to_requester(auth), (payload.comment if payload else None))
     except ValueError as e:
-        raise HTTPException(404, str(e))
+        # 「not found」→ 404；状态不允许操作 → 400
+        raise HTTPException(404 if "not found" in str(e) else 400, str(e))
 
 
 # ---- Publish / Tasks ----
@@ -617,7 +627,10 @@ async def events(auth=Depends(get_current_auth)):
         try:
             while True:
                 payload = await queue.get()
-                yield f"event: {payload['event']}\ndata: {json.dumps(payload['data'])}\n\n"
+                # 发送默认 message 事件（不带 event: 行）：前端 EventSource.onmessage
+                # 只能收到默认事件，命名事件需要 addEventListener 逐个监听。
+                # 事件类型保留在 payload.event 字段里，客户端按需解析。
+                yield f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
         finally:
             event_bus.unsubscribe("*", queue)
 

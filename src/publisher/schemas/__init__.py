@@ -86,7 +86,7 @@ class ReviewAction(BaseModel):
 
 class PublishRequest(BaseModel):
     article_id: int
-    platforms: list[str] = Field(default_factory=list)  # 空 = 由策略决定
+    platforms: list[str] = Field(default_factory=list)  # 为空不会创建任何任务，调用方需保证非空
     account_ids: dict[str, int] = Field(default_factory=dict)  # platform -> account_id
     review_override: str | None = None  # always/optional/never，本次任务覆盖
     publish_override: str | None = None

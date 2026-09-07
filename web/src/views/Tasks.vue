@@ -30,7 +30,7 @@
             :href="scope.row.remote_url"
             target="_blank"
             type="primary"
-            >查看 ↗</el-link
+            >查看</el-link
           >
           <el-tooltip
             v-else-if="scope.row.error_message"

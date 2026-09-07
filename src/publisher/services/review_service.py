@@ -43,6 +43,10 @@ class ReviewService:
         review = self.get(review_id)
         if not review:
             raise ValueError("review not found")
+        if review.status != ReviewStatus.pending.value:
+            raise ValueError(
+                f"review #{review_id} 当前状态为 {review.status}，仅待审核记录可审批"
+            )
         review.status = ReviewStatus.approved.value
         review.reviewer = reviewer
         if comment:
@@ -64,15 +68,18 @@ class ReviewService:
         review = self.get(review_id)
         if not review:
             raise ValueError("review not found")
+        if review.status != ReviewStatus.pending.value:
+            raise ValueError(
+                f"review #{review_id} 当前状态为 {review.status}，仅待审核记录可驳回"
+            )
         review.status = ReviewStatus.rejected.value
         review.reviewer = reviewer
         if comment:
             review.comment = comment
-        # 关联任务回到 wait / failed：文档 9.2 推荐「编辑新版本后重新送审」，
-        # 因此任务回到 waiting_review（等待新版本）。
-        task = self.session.get(PublishTask, review.task_id)
-        if task:
-            task.status = TaskStatus.waiting_review.value
+        # 关联任务留在 waiting_review：文档 9.2 推荐「编辑新版本后重新送审」
+        # （Web 审核页的 refresh 接口负责重绑新版本并把 review 恢复 pending）。
+        # 注意不要无条件改写任务状态——review 与任务的流转可能不同步
+        # （如任务已 success/failed 终态），强行拉回 waiting_review 会破坏终态。
         self.session.commit()
         return review
 

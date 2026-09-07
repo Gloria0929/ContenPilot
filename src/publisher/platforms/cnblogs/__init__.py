@@ -14,12 +14,16 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import xmlrpc.client
 from typing import Any
 
+from cryptography.fernet import InvalidToken
+from sqlalchemy.orm import object_session
+
 from ..base import PlatformAdapter, PublishResult
 from ..registry import register
-from ...security import decrypt_json
+from ...security import decrypt_json, decrypt_legacy, encrypt_json
 
 
 class CnblogsError(Exception):
@@ -55,7 +59,22 @@ class CnblogsAdapter(PlatformAdapter):
                 "账号缺少博客园凭据，请执行: publisher account add cnblogs --username <用户名> "
                 "--token <MetaWeblog访问令牌> --blog-name <博客名>"
             )
-        data = decrypt_json(account.encrypted_credentials)
+        try:
+            data = decrypt_json(account.encrypted_credentials)
+        except InvalidToken:
+            # 历史数据迁移：旧版本用内置默认密钥加密，解开后用当前密钥
+            # 重新加密存回（一次性，幂等）
+            try:
+                data = json.loads(decrypt_legacy(account.encrypted_credentials))
+                account.encrypted_credentials = encrypt_json(data)
+                sess = object_session(account)
+                if sess is not None:
+                    sess.commit()
+            except InvalidToken:
+                raise CnblogsError(
+                    "凭据解密失败：加密密钥已变更，请重新执行 publisher account add "
+                    "cnblogs 录入凭据"
+                )
         for field in ("username", "token", "blog_name"):
             if not data.get(field):
                 raise CnblogsError(f"博客园凭据缺少 {field}")

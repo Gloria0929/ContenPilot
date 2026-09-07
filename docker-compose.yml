@@ -9,6 +9,7 @@ services:
       - PUBLISHER_ADMIN_PASSWORD=admin
       - PUBLISHER_SESSION_SECRET=change-me-please
       - HEADLESS=false
+      - PUBLISHER_HEADLESS=false
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
     volumes:

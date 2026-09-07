@@ -180,7 +180,9 @@ async function reject(row: any) {
 async function refreshVersion(row: any) {
   try {
     const r = await api.post(`/reviews/${row.id}/refresh`);
-    ElMessage.success(`已刷新到最新版本（v${r.data.article_version_id}）`);
+    ElMessage.success(
+      r.data.version ? `已刷新到最新版本（v${r.data.version}）` : "已刷新到最新版本",
+    );
     load();
   } catch (e: any) {
     ElMessage.error(e?.response?.data?.detail || "刷新失败");

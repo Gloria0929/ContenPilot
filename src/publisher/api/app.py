@@ -1,6 +1,6 @@
 """FastAPI 应用与路由。
 
-- API 同时挂载在根路径与 /api 前缀下（前端 axios baseURL=/api，生产环境直连后端）
+- API 统一挂载在 /api 前缀下（前端 axios baseURL=/api，开发模式经 Vite 代理原样转发）
 - 若存在 web/dist（前端构建产物），托管静态资源并做 SPA 路由回退
 """
 from __future__ import annotations
