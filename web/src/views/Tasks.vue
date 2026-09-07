@@ -6,8 +6,16 @@
         <template #default="scope">#{{ scope.row.article_id }}</template>
       </el-table-column>
       <el-table-column prop="platform" label="平台" min-width="100" />
-      <el-table-column prop="review_policy" label="审核" min-width="92" />
-      <el-table-column prop="publish_policy" label="发布" min-width="80" />
+      <el-table-column label="审核" min-width="92">
+        <template #default="scope">{{
+          reviewLabel(scope.row.review_policy)
+        }}</template>
+      </el-table-column>
+      <el-table-column label="发布" min-width="92">
+        <template #default="scope">{{
+          publishLabel(scope.row.publish_policy)
+        }}</template>
+      </el-table-column>
       <el-table-column label="下限锁定" min-width="90">
         <template #default="scope">
           <el-tag v-if="scope.row.policy_floor_locked" type="warning"
@@ -122,6 +130,19 @@ const statusLabel: Record<string, string> = {
   cancelled: "已取消",
   timeout: "超时",
 };
+const reviewLabel = (v: string) =>
+  (({ always: "始终审核", optional: "可选审核", never: "无需审核" }) as any)[
+    v
+  ] ?? v;
+const publishLabel = (v: string) =>
+  (
+    ({
+      automatic: "自动发布",
+      manual: "手动发布",
+      scheduled: "定时发布",
+      disabled: "禁止发布",
+    }) as any
+  )[v] ?? v;
 const statusType = (s: string) => {
   const m: Record<
     string,
