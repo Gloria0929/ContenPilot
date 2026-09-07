@@ -1,8 +1,8 @@
-"""Typer CLI（文档第 43-45 节）。所有命令走 Publisher Core，支持 --json。"""
 from __future__ import annotations
 
 from typing import Optional
 
+import click
 import typer
 from rich.console import Console
 from rich.table import Table
@@ -10,11 +10,24 @@ from rich.table import Table
 from ..config import settings as _settings
 from ..database import SessionLocal, init_db
 
-app = typer.Typer(help="AI Content Publisher")
+app = typer.Typer(help="AI Content Publisher - 内容发布系统")
 console = Console()
 
-json_app = typer.Typer()
+json_app = typer.Typer(help="JSON 格式输出（所有子命令均支持 --json）")
 app.add_typer(json_app, name="json")
+
+
+@app.callback(invoke_without_command=True)
+def main_context(ctx: typer.Context):
+    """
+    AI Content Publisher - 内容发布系统
+    
+    如果不带任何子命令，显示帮助信息。
+    """
+    if ctx.invoked_subcommand is None:
+        console.print("[bold cyan]AI Content Publisher[/bold cyan]\n")
+        click.echo(ctx.command.get_help(ctx))
+        raise typer.Exit()
 
 
 def _session():
@@ -52,7 +65,7 @@ def _to_dict(obj):
 
 # ---- server ----
 
-@app.command()
+@app.command(help="启动 Web 服务（同进程后台运行发布 Worker）")
 def server(host: str = "127.0.0.1", port: int = 8000):
     """启动 Web 服务（同进程后台运行发布 Worker）。"""
     import threading
@@ -74,17 +87,17 @@ def server(host: str = "127.0.0.1", port: int = 8000):
 
 # ---- article ----
 
-article_app = typer.Typer()
+article_app = typer.Typer(help="文章管理（创建/列表/查看/更新）")
 app.add_typer(article_app, name="article")
 
 
-@article_app.command("create")
+@article_app.command("create", help="创建新文章")
 def article_create(
-    title: str = typer.Option("", "--title"),
-    content: str = typer.Option("", "--content"),
-    summary: str = typer.Option("", "--summary"),
-    source: str = typer.Option("manual", "--source"),
-    json_: bool = typer.Option(False, "--json"),
+    title: str = typer.Option("", "--title", help="文章标题"),
+    content: str = typer.Option("", "--content", help="文章内容"),
+    summary: str = typer.Option("", "--summary", help="文章摘要"),
+    source: str = typer.Option("manual", "--source", help="来源标识"),
+    json_: bool = typer.Option(False, "--json", help="以 JSON 格式输出"),
 ):
     from ..services.article_service import ArticleService
 
@@ -96,8 +109,8 @@ def article_create(
     _print_json(a) if json_ else console.print(f"created article #{a.id}")
 
 
-@article_app.command("list")
-def article_list(json_: bool = typer.Option(False, "--json")):
+@article_app.command("list", help="列出所有文章")
+def article_list(json_: bool = typer.Option(False, "--json", help="以 JSON 格式输出")):
     from ..services.article_service import ArticleService
 
     s = _session()
@@ -117,8 +130,11 @@ def article_list(json_: bool = typer.Option(False, "--json")):
     console.print(table)
 
 
-@article_app.command("show")
-def article_show(article_id: int, json_: bool = typer.Option(False, "--json")):
+@article_app.command("show", help="查看单篇文章详情")
+def article_show(
+    article_id: int = typer.Argument(..., help="文章 ID"),
+    json_: bool = typer.Option(False, "--json", help="以 JSON 格式输出"),
+):
     from ..services.article_service import ArticleService
 
     s = _session()
@@ -135,16 +151,16 @@ def article_show(article_id: int, json_: bool = typer.Option(False, "--json")):
         console.print(f"[bold]{a.title}[/bold] ({a.status})\n{a.content}")
 
 
-@article_app.command("update")
+@article_app.command("update", help="修改文章。内容变更后，已有的版本审核不再对新版本生效")
 def article_update(
-    article_id: int = typer.Argument(...),
-    title: Optional[str] = typer.Option(None, "--title"),
-    content: Optional[str] = typer.Option(None, "--content"),
-    summary: Optional[str] = typer.Option(None, "--summary"),
+    article_id: int = typer.Argument(..., help="文章 ID"),
+    title: Optional[str] = typer.Option(None, "--title", help="新标题"),
+    content: Optional[str] = typer.Option(None, "--content", help="新内容"),
+    summary: Optional[str] = typer.Option(None, "--summary", help="新摘要"),
     status: Optional[str] = typer.Option(None, "--status", help="draft / ready / archived"),
-    json_: bool = typer.Option(False, "--json"),
+    json_: bool = typer.Option(False, "--json", help="以 JSON 格式输出"),
 ):
-    """修改文章。内容变更后，已有的版本审核不再对新版本生效（§35）。"""
+    """修改文章。内容变更后，已有的版本审核不再对新版本生效。"""
     from ..services.article_service import ArticleService
 
     if not any((title, content, summary, status)):
@@ -169,12 +185,14 @@ def article_update(
 
 # ---- ai ----
 
-ai_app = typer.Typer()
+ai_app = typer.Typer(help="AI 功能（生成/修改/适配内容）")
 app.add_typer(ai_app, name="ai")
 
 
-@ai_app.command("generate")
-def ai_generate_cmd(prompt: str):
+@ai_app.command("generate", help="使用 AI 生成内容")
+def ai_generate_cmd(
+    prompt: str = typer.Argument(..., help="生成提示词"),
+):
     import asyncio
 
     from ..ai import ai_generate
@@ -183,8 +201,11 @@ def ai_generate_cmd(prompt: str):
     console.print(result)
 
 
-@ai_app.command("revise")
-def ai_revise_cmd(content: str, instruction: str):
+@ai_app.command("revise", help="使用 AI 修改内容")
+def ai_revise_cmd(
+    content: str = typer.Argument(..., help="待修改的内容"),
+    instruction: str = typer.Argument(..., help="修改指令"),
+):
     import asyncio
 
     from ..ai import ai_revise
@@ -193,8 +214,11 @@ def ai_revise_cmd(content: str, instruction: str):
     console.print(result)
 
 
-@ai_app.command("adapt")
-def ai_adapt_cmd(content: str, platform: str):
+@ai_app.command("adapt", help="把内容适配为指定平台风格（文档第 36 节）")
+def ai_adapt_cmd(
+    content: str = typer.Argument(..., help="待适配的内容"),
+    platform: str = typer.Argument(..., help="目标平台名称"),
+):
     """把内容适配为指定平台风格（文档第 36 节）。"""
     import asyncio
 
@@ -206,17 +230,17 @@ def ai_adapt_cmd(content: str, platform: str):
 
 # ---- policy ----
 
-policy_app = typer.Typer()
+policy_app = typer.Typer(help="审核/发布策略管理")
 app.add_typer(policy_app, name="policy")
 
 
-@policy_app.command("resolve")
+@policy_app.command("resolve", help="查询某作用域组合最终解析出的审核/发布策略（只读）")
 def policy_resolve(
     platform: Optional[str] = typer.Option(None, "--platform", help="平台名，如 juejin"),
-    account_id: Optional[int] = typer.Option(None, "--account-id"),
-    article_id: Optional[int] = typer.Option(None, "--article-id"),
-    task_id: Optional[int] = typer.Option(None, "--task-id"),
-    json_: bool = typer.Option(False, "--json"),
+    account_id: Optional[int] = typer.Option(None, "--account-id", help="账号 ID"),
+    article_id: Optional[int] = typer.Option(None, "--article-id", help="文章 ID"),
+    task_id: Optional[int] = typer.Option(None, "--task-id", help="任务 ID"),
+    json_: bool = typer.Option(False, "--json", help="以 JSON 格式输出"),
 ):
     """查询某作用域组合最终解析出的审核/发布策略（只读）。"""
     from sqlalchemy import select
@@ -256,16 +280,16 @@ def policy_resolve(
         console.print(f"发布策略: {data['publish_policy']}")
 
 
-@policy_app.command("set")
+@policy_app.command("set", help="设置某层策略覆盖。未配置 = 继承上级")
 def policy_set(
     scope: str = typer.Argument(..., help="global / platform / account / article / task"),
-    scope_id: Optional[int] = typer.Argument(None),
+    scope_id: Optional[int] = typer.Argument(None, help="作用域 ID（global 不需要）"),
     review: Optional[str] = typer.Option(None, "--review", help="always / optional / never"),
     publish: Optional[str] = typer.Option(None, "--publish", help="automatic / manual / scheduled / disabled"),
     floor: bool = typer.Option(False, "--floor", help="仅 platform/account 层：设为不可被下游调松的下限"),
     clear: bool = typer.Option(False, "--clear", help="删除该层配置，恢复跟随上级"),
 ):
-    """设置某层策略覆盖。未配置 = 继承上级（§2.5）。"""
+    """设置某层策略覆盖。未配置 = 继承上级。"""
     from ..services.policy_service import PolicyService
 
     if scope == "global":
@@ -299,12 +323,12 @@ def policy_set(
 
 # ---- review ----
 
-review_app = typer.Typer()
+review_app = typer.Typer(help="审核管理（待审列表/通过/驳回）")
 app.add_typer(review_app, name="review")
 
 
-@review_app.command("list")
-def review_list(json_: bool = typer.Option(False, "--json")):
+@review_app.command("list", help="列出所有待审核项")
+def review_list(json_: bool = typer.Option(False, "--json", help="以 JSON 格式输出")):
     s = _session()
     try:
         from ..services.review_service import ReviewService
@@ -318,8 +342,11 @@ def review_list(json_: bool = typer.Option(False, "--json")):
             console.print(f"#{r.id} task={r.task_id} version={r.article_version_id}")
 
 
-@review_app.command("approve")
-def review_approve(review_id: int, comment: Optional[str] = None):
+@review_app.command("approve", help="通过审核")
+def review_approve(
+    review_id: int = typer.Argument(..., help="审核记录 ID"),
+    comment: Optional[str] = typer.Option(None, "--comment", help="审核意见"),
+):
     from ..services.review_service import ReviewService
 
     s = _session()
@@ -333,8 +360,11 @@ def review_approve(review_id: int, comment: Optional[str] = None):
         s.close()
 
 
-@review_app.command("reject")
-def review_reject(review_id: int, comment: Optional[str] = None):
+@review_app.command("reject", help="驳回审核")
+def review_reject(
+    review_id: int = typer.Argument(..., help="审核记录 ID"),
+    comment: Optional[str] = typer.Option(None, "--comment", help="驳回理由"),
+):
     from ..services.review_service import ReviewService
 
     s = _session()
@@ -350,14 +380,14 @@ def review_reject(review_id: int, comment: Optional[str] = None):
 
 # ---- publish ----
 
-@app.command("publish")
+@app.command(help="发布文章到指定平台（支持审核策略覆盖）")
 def publish(
-    article_id: int,
-    platform: Optional[str] = typer.Argument(None),
+    article_id: int = typer.Argument(..., help="文章 ID"),
+    platform: Optional[str] = typer.Argument(None, help="平台名称，如 juejin / cnblogs"),
     account: Optional[str] = typer.Option(None, "--account", "-a", help="账号 key 或 id；单平台时可省略（自动选该平台唯一账号）"),
-    review: bool = typer.Option(False, "--review"),
-    no_review: bool = typer.Option(False, "--no-review"),
-    json_: bool = typer.Option(False, "--json"),
+    review: bool = typer.Option(False, "--review", help="强制要求审核"),
+    no_review: bool = typer.Option(False, "--no-review", help="跳过审核"),
+    json_: bool = typer.Option(False, "--json", help="以 JSON 格式输出"),
 ):
     from ..services.account_service import AccountService
     from ..services.publish_service import PublishService
@@ -434,12 +464,15 @@ def publish(
 
 # ---- task ----
 
-task_app = typer.Typer()
+task_app = typer.Typer(help="发布任务管理（列表/查看/重试/恢复/取消）")
 app.add_typer(task_app, name="task")
 
 
-@task_app.command("list")
-def task_list(status: Optional[str] = None, json_: bool = typer.Option(False, "--json")):
+@task_app.command("list", help="列出发布任务")
+def task_list(
+    status: Optional[str] = typer.Option(None, "--status", help="按状态筛选"),
+    json_: bool = typer.Option(False, "--json", help="以 JSON 格式输出"),
+):
     from ..services.publish_service import PublishService
 
     s = _session()
@@ -458,8 +491,11 @@ def task_list(status: Optional[str] = None, json_: bool = typer.Option(False, "-
         console.print(table)
 
 
-@task_app.command("show")
-def task_show(task_id: int, json_: bool = typer.Option(False, "--json")):
+@task_app.command("show", help="查看任务详情")
+def task_show(
+    task_id: int = typer.Argument(..., help="任务 ID"),
+    json_: bool = typer.Option(False, "--json", help="以 JSON 格式输出"),
+):
     from ..services.publish_service import PublishService
 
     s = _session()
@@ -473,8 +509,10 @@ def task_show(task_id: int, json_: bool = typer.Option(False, "--json")):
     _print_json(t) if json_ else console.print(_to_dict(t))
 
 
-@task_app.command("retry")
-def task_retry(task_id: int):
+@task_app.command("retry", help="重试失败的任务")
+def task_retry(
+    task_id: int = typer.Argument(..., help="任务 ID"),
+):
     from ..services.publish_service import PublishService
 
     s = _session()
@@ -488,8 +526,10 @@ def task_retry(task_id: int):
         s.close()
 
 
-@task_app.command("resume")
-def task_resume(task_id: int):
+@task_app.command("resume", help="恢复暂停的任务")
+def task_resume(
+    task_id: int = typer.Argument(..., help="任务 ID"),
+):
     from ..services.publish_service import PublishService
 
     s = _session()
@@ -503,8 +543,10 @@ def task_resume(task_id: int):
         s.close()
 
 
-@task_app.command("cancel")
-def task_cancel(task_id: int):
+@task_app.command("cancel", help="取消任务")
+def task_cancel(
+    task_id: int = typer.Argument(..., help="任务 ID"),
+):
     from ..services.publish_service import PublishService
 
     s = _session()
@@ -520,12 +562,12 @@ def task_cancel(task_id: int):
 
 # ---- account ----
 
-account_app = typer.Typer()
+account_app = typer.Typer(help="账号管理（列表/添加/启用/停用）")
 app.add_typer(account_app, name="account")
 
 
-@account_app.command("list")
-def account_list(json_: bool = typer.Option(False, "--json")):
+@account_app.command("list", help="列出所有账号")
+def account_list(json_: bool = typer.Option(False, "--json", help="以 JSON 格式输出")):
     from ..services.account_service import AccountService
 
     s = _session()
@@ -540,16 +582,16 @@ def account_list(json_: bool = typer.Option(False, "--json")):
             console.print(f"#{a.id} {a.key} platform={a.platform} status={a.status}")
 
 
-@account_app.command("add")
+@account_app.command("add", help="添加账号。带 --token 时凭据将加密保存，用于官方 API 平台发布")
 def account_add(
-    platform: str,
-    key: Optional[str] = None,
-    name: str = "",
+    platform: str = typer.Argument(..., help="平台名称"),
+    key: Optional[str] = typer.Option(None, "--key", help="账号唯一标识（缺省自动生成）"),
+    name: str = typer.Option("", "--name", help="账号显示名称"),
     username: Optional[str] = typer.Option(None, "--username", help="平台登录用户名（如博客园）"),
     token: Optional[str] = typer.Option(None, "--token", help="API 访问令牌（如博客园 MetaWeblog 访问令牌），加密存储"),
     blog_name: Optional[str] = typer.Option(None, "--blog-name", help="博客名（博客地址中 /<博客名>/ 部分），缺省取 username"),
 ):
-    """添加账号。带 --token 时凭据将加密保存（§53），用于官方 API 平台发布。"""
+    """添加账号。带 --token 时凭据将加密保存，用于官方 API 平台发布。"""
     from ..services.account_service import AccountService
 
     key = key or f"{platform}_{name or (username or 'default')}"
@@ -571,19 +613,70 @@ def account_add(
         s.close()
 
 
+def _resolve_account(svc, account: str):
+    """按数字 id 或账号 key 解析账号。"""
+    return svc.get(int(account)) if account.isdigit() else svc.get_by_key(account)
+
+
+@account_app.command("disable", help="停用账号（key 或 id）。停用后新发布任务被拦截，历史任务保留")
+def account_disable(
+    account: str = typer.Argument(..., help="账号 key 或 ID"),
+):
+    """停用账号（key 或 id）。停用后新发布任务被拦截，历史任务保留。"""
+    from ..services.account_service import AccountService
+
+    s = _session()
+    try:
+        svc = AccountService(s)
+        acc = _resolve_account(svc, account)
+        if not acc:
+            console.print(f"[red]account {account} not found[/red]")
+            raise typer.Exit(1)
+        a = svc.set_enabled(acc.id, enabled=False)
+        console.print(f"account #{a.id} {a.key} 已停用")
+    except ValueError as e:
+        console.print(f"[red]{e}[/red]")
+        raise typer.Exit(1)
+    finally:
+        s.close()
+
+
+@account_app.command("enable", help="启用已停用的账号（key 或 id）")
+def account_enable(
+    account: str = typer.Argument(..., help="账号 key 或 ID"),
+):
+    """启用已停用的账号（key 或 id）。"""
+    from ..services.account_service import AccountService
+
+    s = _session()
+    try:
+        svc = AccountService(s)
+        acc = _resolve_account(svc, account)
+        if not acc:
+            console.print(f"[red]account {account} not found[/red]")
+            raise typer.Exit(1)
+        a = svc.set_enabled(acc.id, enabled=True)
+        console.print(f"account #{a.id} {a.key} 已启用")
+    except ValueError as e:
+        console.print(f"[red]{e}[/red]")
+        raise typer.Exit(1)
+    finally:
+        s.close()
+
+
 # ---- browser ----
 
-browser_app = typer.Typer()
+browser_app = typer.Typer(help="浏览器登录（保存登录态）")
 app.add_typer(browser_app, name="browser")
 
 
-@browser_app.command("login")
+@browser_app.command("login", help="打开可见浏览器完成登录并保存 storage_state")
 def browser_login(
-    platform: str,
+    platform: str = typer.Argument(..., help="平台名称"),
     account: Optional[str] = typer.Option(None, "--account", "-a", help="账号 key；缺省用该平台唯一账号，没有则自动创建"),
     timeout: int = typer.Option(300, "--timeout", help="等待登录完成的最长时间（秒）"),
 ):
-    """打开可见浏览器完成登录并保存 storage_state（§24/§25）。
+    """打开可见浏览器完成登录并保存 storage_state。
 
     本机：直接弹出 Chromium 窗口；容器：经 noVNC(:6080) 操作。
     """
@@ -635,7 +728,7 @@ def browser_login(
 
 # ---- auth ----
 
-auth_app = typer.Typer()
+auth_app = typer.Typer(help="认证管理（登录/登出/查看状态）")
 app.add_typer(auth_app, name="auth")
 
 CLI_TOKEN_FILE = _settings.data_dir / "cli_session.json"
@@ -669,7 +762,7 @@ def _clear_cli_token() -> None:
         pass
 
 
-@auth_app.command("login")
+@auth_app.command("login", help="登录并把 API Key 持久化到本地（跨进程生效，可用于 CLI 与 REST API Bearer）")
 def auth_login(
     username: Optional[str] = typer.Option(None, "--username", "-u", help="默认 admin"),
     password: Optional[str] = typer.Option(None, "--password", "-p", help="未提供时交互输入"),
@@ -700,7 +793,7 @@ def auth_login(
     console.print(f"该 token 也可用于 REST API：Authorization: Bearer {raw[:8]}…")
 
 
-@auth_app.command("logout")
+@auth_app.command("logout", help="撤销当前 CLI 登录态（revoke API Key 并删除本地 token 文件）")
 def auth_logout():
     """撤销当前 CLI 登录态（revoke API Key 并删除本地 token 文件）。"""
     from ..auth import AuthService
@@ -721,7 +814,7 @@ def auth_logout():
     console.print("logged out")
 
 
-@auth_app.command("whoami")
+@auth_app.command("whoami", help="显示当前 CLI 登录态（校验本地 token 对应的 API Key 是否仍有效）")
 def auth_whoami():
     """显示当前 CLI 登录态（校验本地 token 对应的 API Key 是否仍有效）。"""
     from ..auth import AuthService
@@ -746,6 +839,12 @@ def main() -> None:
 
     try:
         app()
-    except Exception as e:  # 兜底：只显示错误信息，不显示代码 traceback
+    except typer.Exit:
+        raise
+    except Exception as e:
         console.print(f"[red]错误：{e}[/red]")
         sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()

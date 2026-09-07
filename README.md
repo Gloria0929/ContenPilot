@@ -21,13 +21,20 @@ Web、CLI、AI Agent Skill 三种使用方式共享同一套 Publisher Core：�
 | 博客园 (cnblogs) | api | `publisher account add cnblogs --username ... --token ...`（MetaWeblog 令牌，Fernet 加密存储） | 官方 MetaWeblog XML-RPC |
 | 掘金 (juejin) | browser | `publisher browser login juejin`（保存 storage_state） | Playwright 驱动浏览器 |
 | 小红书 (xiaohongshu) | browser | `publisher browser login xiaohongshu` | Playwright 驱动浏览器 |
+| CSDN (csdn) | browser | `publisher browser login csdn` | Playwright 驱动浏览器 |
+| 思否 (segmentfault) | browser | `publisher browser login segmentfault` | Playwright 驱动浏览器 |
+| FreeBuf (freebuf) | browser | `publisher browser login freebuf`（投稿后需平台审核） | Playwright 驱动浏览器 |
+| 百家号 (baijiahao) | browser | `publisher browser login baijiahao` | Playwright 驱动浏览器 |
+| 企鹅号 (qiehao) | browser | `publisher browser login qiehao`（发布后分发腾讯网/腾讯新闻等渠道） | Playwright 驱动浏览器 |
+| 51CTO (51cto) | browser | `publisher browser login 51cto` | Playwright 驱动浏览器 |
+| 腾讯云开发者社区 (tencent_cloud) | browser | `publisher browser login tencent_cloud` | Playwright 驱动浏览器 |
 
 新增平台基于 Adapter 扩展（`src/publisher/platforms/`），不修改 Core 代码；浏览器平台的页面操作放在 `src/publisher/browser/scripts/`。
 
 > **安全提示（务必阅读）**
 >
 > 1. **鉴权**：默认部署仅监听 `127.0.0.1`。如需暴露到局域网/公网，必须先修改 `PUBLISHER_ADMIN_USERNAME` / `PUBLISHER_ADMIN_PASSWORD` / `PUBLISHER_SESSION_SECRET`，否则任何人都可以操作你的发布账号。账号凭据的加密密钥自动生成于 `data/secret.key`（权限 600），**该文件丢失后已存凭据将无法解密**，请妥善备份；也可通过 `PUBLISHER_ENCRYPTION_KEY` 显式指定。
-> 2. **平台合规**：使用浏览器自动化在小红书、掘金等平台发布可能违反目标平台的服务条款，存在触发风控甚至封号的风险，尤其在 `review=never + publish=automatic` 全自动模式下。请自行评估并承担风险；系统已内置最小发布间隔与账号冷却（见配置表），建议保持开启。
+> 2. **平台合规**：使用浏览器自动化在掘金、CSDN、百家号等平台发布可能违反目标平台的服务条款，存在触发风控甚至封号的风险，尤其在 `review=never + publish=automatic` 全自动模式下。请自行评估并承担风险；系统已内置最小发布间隔与账号冷却（见配置表），建议保持开启。
 
 核心概念：
 
@@ -257,8 +264,8 @@ docker compose exec publisher publisher article list
 docker compose exec publisher publisher task list --json
 
 # 浏览器平台登录：弹出窗口渲染在容器内，通过 noVNC(:6080) 完成扫码/登录
-docker compose exec publisher publisher browser login xiaohongshu
-docker compose exec publisher publisher browser login juejin -a juejin_default
+docker compose exec publisher publisher browser login juejin
+docker compose exec publisher publisher browser login csdn -a csdn_default
 ```
 
 端口：

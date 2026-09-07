@@ -1,18 +1,22 @@
-"""小红书平台 Adapter（浏览器自动化类示例，文档第 69 节 Browser Platform x1）。
+"""通用浏览器平台 Adapter 基类。
 
-小红书无官方开放发布 API，使用 Playwright 自动化。
-具体 selector / 操作由 Browser 层负责，不在此硬编码业务。
+无官方发布 API 的平台（CSDN / 思否 / FreeBuf / 百家号 / 企鹅号 / 51CTO /
+腾讯云开发者社区等）共用同一套浏览器自动化流程：
+Adapter 只做接口适配，selector / 页面操作在 browser/scripts/<platform>.py。
+
+新增浏览器平台：建 platforms/<name>/__init__.py 继承本类并
+@register("<name>") 即可，无需复制本文件。
 """
 from __future__ import annotations
 
 from typing import Any
 
-from ..base import PlatformAdapter, PublishResult
-from ..registry import register
+from .base import PlatformAdapter, PublishResult
 
 
-@register("xiaohongshu")
-class XiaohongshuAdapter(PlatformAdapter):
+class BrowserModeAdapter(PlatformAdapter):
+    mode = "browser"
+
     async def capabilities(self) -> dict[str, Any]:
         return {
             "platform": self.platform,
@@ -26,7 +30,8 @@ class XiaohongshuAdapter(PlatformAdapter):
         }
 
     async def check_account(self, account) -> bool:
-        return bool(account and account.encrypted_credentials)
+        # 浏览器平台依赖 storage_state 登录态（发布时校验），不要求加密凭据
+        return bool(account)
 
     async def authorize(self, account) -> bool:
         return True
@@ -40,14 +45,15 @@ class XiaohongshuAdapter(PlatformAdapter):
         return errors
 
     async def create_draft(self, content, account=None, task_id=None) -> PublishResult:
-        from ...browser import run_browser_publish
+        # _browser.py 位于 publisher.platforms 包内（非子包），相对导入为两级
+        from ..browser import run_browser_publish
 
         return await run_browser_publish(
             self.platform, content, account=account, task_id=task_id, mode="draft"
         )
 
     async def publish(self, content, account=None, task_id=None) -> PublishResult:
-        from ...browser import run_browser_publish
+        from ..browser import run_browser_publish
 
         return await run_browser_publish(
             self.platform, content, account=account, task_id=task_id, mode="publish"

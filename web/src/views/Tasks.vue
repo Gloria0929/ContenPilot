@@ -1,6 +1,6 @@
 <template>
   <div>
-    <el-table :data="tasks" min-width="120">
+    <el-table :data="tasks">
       <el-table-column prop="id" label="ID" min-width="60" />
       <el-table-column label="文章" min-width="70">
         <template #default="scope">#{{ scope.row.article_id }}</template>

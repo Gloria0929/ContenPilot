@@ -45,7 +45,7 @@
         <el-table-column label="账号" min-width="180">
           <template #default="scope">{{ accountLabel(scope.row) }}</template>
         </el-table-column>
-        <el-table-column prop="platform" label="平台" width="120" />
+        <el-table-column prop="platform" label="平台" min-width="120" />
         <el-table-column label="状态" min-width="100">
           <template #default="scope">
             <el-tag :type="scope.row.status === 'busy' ? 'warning' : 'success'">

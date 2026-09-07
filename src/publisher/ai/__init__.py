@@ -53,8 +53,13 @@ class OpenAICompatProvider(AIProvider):
         style_map = {
             "juejin": "技术博客，保留 Markdown，结构清晰",
             "csdn": "技术博客，保留 Markdown，结构清晰",
+            "segmentfault": "技术问答社区风格，保留 Markdown，重点突出",
+            "51cto": "技术博客，保留 Markdown，结构清晰",
+            "tencent_cloud": "云技术社区风格，保留 Markdown，面向开发者",
+            "freebuf": "网络安全社区风格，专业严谨，术语准确",
+            "baijiahao": "自媒体资讯风格，段落简短，标题吸引人",
+            "qiehao": "资讯平台风格，段落简短，适合移动端阅读",
             "zhihu": "知乎富文本，观点明确，可读性强",
-            "xiaohongshu": "小红书短内容，口语化，带 emoji 和标签",
             "wechat": "微信公众号 HTML，排版美观",
         }
         style = style_map.get(platform, "通用")

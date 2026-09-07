@@ -501,12 +501,20 @@ def update_account(
     db: Session = Depends(get_db), auth=Depends(get_current_auth),
 ):
     from ..services.account_service import AccountService
+    svc = AccountService(db)
     try:
-        a = AccountService(db).update(
-            account_id,
-            platform=payload.get("platform"),
-            name=payload.get("name"),
-        )
+        # status 切换走独立语义（停用/启用），不与 platform/name 混用
+        status = payload.get("status")
+        if status is not None:
+            if status not in ("disabled", "active"):
+                raise HTTPException(400, "status 仅支持 disabled / active")
+            a = svc.set_enabled(account_id, enabled=(status == "active"))
+        else:
+            a = svc.update(
+                account_id,
+                platform=payload.get("platform"),
+                name=payload.get("name"),
+            )
     except ValueError as e:
         raise HTTPException(400, str(e))
     if not a:

@@ -28,7 +28,13 @@ def import_platforms() -> None:
     """导入所有平台模块以触发注册。"""
     from . import cnblogs  # noqa: F401  (官方 API)
     from . import juejin  # noqa: F401
-    from . import xiaohongshu  # noqa: F401  (浏览器类)
+    from . import csdn  # noqa: F401
+    from . import segmentfault  # noqa: F401
+    from . import freebuf  # noqa: F401
+    from . import baijiahao  # noqa: F401
+    from . import qiehao  # noqa: F401
+    from . import cto51  # noqa: F401  (51cto，模块名避开数字开头)
+    from . import tencent_cloud  # noqa: F401
 
 
 def adapter_mode(name: str) -> str:

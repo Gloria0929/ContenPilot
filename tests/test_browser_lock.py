@@ -139,9 +139,9 @@ def _mk_account(s, n: int, platform: str = "fake_xhs") -> Account:
 def test_sync_platforms_populates_table(db):
     names = {p.name: p.mode for p in db.query(Platform).all()}
     assert names.get("cnblogs") == "api"
-    assert names.get("xiaohongshu") == "browser"
+    assert names.get("csdn") == "browser"
     assert needs_browser_lock(db, "cnblogs") is False
-    assert needs_browser_lock(db, "xiaohongshu") is True
+    assert needs_browser_lock(db, "csdn") is True
 
 
 async def test_worker_holds_and_releases_lock(db, monkeypatch):

@@ -62,7 +62,7 @@ class Platform(TimestampMixin, Base):
     __tablename__ = "platforms"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    name: Mapped[str] = mapped_column(String(64), unique=True)  # juejin / xiaohongshu ...
+    name: Mapped[str] = mapped_column(String(64), unique=True)  # juejin / csdn ...
     mode: Mapped[str] = mapped_column(String(16), default="browser")  # api / browser / manual
     capabilities: Mapped[str] = mapped_column(Text, default="{}")  # JSON
 

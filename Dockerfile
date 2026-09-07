@@ -1,8 +1,9 @@
-# ---- 阶段一：构建前端 ----
-FROM node:20-slim AS web-builder
+# ---- 阶段一：前端构建（web/dist）----
+FROM node:20-alpine AS web-builder
 WORKDIR /web
+# 国内网络走 npmmirror；先拷 lock 文件利用层缓存
 COPY web/package.json web/package-lock.json ./
-RUN npm ci
+RUN npm ci --registry=https://registry.npmmirror.com
 COPY web ./
 RUN npm run build
 
@@ -12,15 +13,17 @@ FROM python:3.12-slim
 # 国内网络直连 PyPI / Playwright CDN 容易读超时：走镜像源 + 放宽超时
 ENV PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1 \
-    HEADLESS=true \
+    HEADLESS=false \
     PIP_DEFAULT_TIMEOUT=120 \
     PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple \
-    PLAYWRIGHT_DOWNLOAD_HOST=https://cdn.npmmirror.com/binaries/playwright
+    PLAYWRIGHT_DOWNLOAD_HOST=https://cdn.npmmirror.com/binaries/playwright \
+    TZ=Asia/Shanghai
 
 # 系统依赖：Xvfb（虚拟显示）+ 浏览器运行库 + 中文字体
 # 官方 deb.debian.org 国内极慢，先替换为清华镜像源（trixie 为 DEB822 格式）
 RUN sed -i 's|deb.debian.org|mirrors.tuna.tsinghua.edu.cn|g' \
         /etc/apt/sources.list.d/debian.sources 2>/dev/null || true
+
 RUN apt-get update && apt-get install -y --no-install-recommends \
     xvfb \
     x11vnc \
@@ -43,7 +46,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libasound2 \
     fonts-noto-cjk \
     curl \
+    tzdata \
     && rm -rf /var/lib/apt/lists/*
+
+RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && \
+    echo $TZ > /etc/timezone
 
 WORKDIR /app
 

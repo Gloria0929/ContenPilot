@@ -64,6 +64,27 @@ class AccountService:
         self.session.commit()
         return account
 
+    def set_enabled(self, account_id: int, enabled: bool) -> Account | None:
+        """停用/启用账号（disabled ↔ active）。
+
+        停用是删除的推荐替代：pre_publish_check 会拦截该账号新任务，
+        历史任务与发布归因完整保留。启用仅对已停用账号生效，
+        不覆盖 cooling / auth_expired 等系统管理状态。
+        """
+        account = self.get(account_id)
+        if not account:
+            return None
+        if enabled:
+            if account.status != AccountStatus.disabled.value:
+                raise ValueError("账号未处于停用状态，无需启用")
+            account.status = AccountStatus.active.value
+        else:
+            if account.status == AccountStatus.disabled.value:
+                raise ValueError("账号已处于停用状态")
+            account.status = AccountStatus.disabled.value
+        self.session.commit()
+        return account
+
     def delete(self, account_id: int) -> bool:
         """删除账号。已关联发布任务的账号拒绝删除（保留历史归因）。"""
         from sqlalchemy import delete as sa_delete

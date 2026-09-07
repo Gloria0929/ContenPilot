@@ -106,11 +106,19 @@ class BrowserWorker:
         from playwright.async_api import async_playwright
 
         self._pw = await async_playwright().start()
-        self._browser = await self._pw.chromium.launch(headless=self._headless)
+        # 反自动化检测：禁用 AutomationControlled 特征（navigator.webdriver 等），
+        # 降低 CSDN 等风控严格平台登录/发布时的验证失败率
+        self._browser = await self._pw.chromium.launch(
+            headless=self._headless,
+            args=["--disable-blink-features=AutomationControlled"],
+        )
         kwargs: dict = {"viewport": {"width": 1440, "height": 900}, "locale": "zh-CN"}
         if storage_state:
             kwargs["storage_state"] = storage_state
         self._context = await self._browser.new_context(**kwargs)
+        await self._context.add_init_script(
+            "Object.defineProperty(navigator, 'webdriver', {get: () => undefined});"
+        )
         return self._context
 
     async def start_tracing(self) -> None:

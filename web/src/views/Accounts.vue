@@ -19,10 +19,26 @@
           </el-tag>
         </template>
       </el-table-column>
-      <el-table-column label="操作" min-width="140">
+      <el-table-column label="操作" min-width="180">
         <template #default="scope">
           <div class="row-actions">
             <el-button text @click="openEdit(scope.row)"> 编辑 </el-button>
+            <el-button
+              v-if="scope.row.status !== 'disabled'"
+              text
+              type="warning"
+              @click="confirmDisable(scope.row)"
+            >
+              停用
+            </el-button>
+            <el-button
+              v-else
+              text
+              type="success"
+              @click="toggleEnabled(scope.row, true)"
+            >
+              启用
+            </el-button>
             <el-button text type="danger" @click="confirmRemove(scope.row)">
               删除
             </el-button>
@@ -149,6 +165,7 @@ const statusMap: Record<
   { label: string; type: "success" | "warning" | "danger" }
 > = {
   active: { label: "正常", type: "success" },
+  auth_expired: { label: "登录失效", type: "warning" },
   cooling: { label: "冷却中", type: "warning" },
   disabled: { label: "已禁用", type: "danger" },
 };
@@ -241,6 +258,35 @@ async function save() {
     ElMessage.error(e?.response?.data?.detail || "保存失败");
   } finally {
     saving.value = false;
+  }
+}
+
+async function confirmDisable(row: any) {
+  try {
+    await ElMessageBox.confirm(
+      `确定停用账号「${row.name || row.key}」吗？停用后新发布任务将被拦截，历史任务保留，可随时重新启用。`,
+      "停用账号",
+      {
+        confirmButtonText: "停用",
+        cancelButtonText: "取消",
+        type: "warning",
+      },
+    );
+  } catch {
+    return;
+  }
+  await toggleEnabled(row, false);
+}
+
+async function toggleEnabled(row: any, enabled: boolean) {
+  try {
+    await api.patch(`/accounts/${row.id}`, {
+      status: enabled ? "active" : "disabled",
+    });
+    ElMessage.success(enabled ? "账号已启用" : "账号已停用");
+    await load();
+  } catch (e: any) {
+    ElMessage.error(e?.response?.data?.detail || "操作失败");
   }
 }
 

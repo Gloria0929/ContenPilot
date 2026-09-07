@@ -53,4 +53,9 @@ if (_web_dist / "index.html").is_file():
             and str(file).startswith(str(_web_dist.resolve()))
         ):
             return FileResponse(file)
-        return FileResponse(_web_dist / "index.html")
+        # SPA 入口禁缓存：资源文件名自带 hash 可长缓存，但入口必须
+        # 每次重新验证，否则浏览器缓存旧 index.html 会一直引用旧资源
+        return FileResponse(
+            _web_dist / "index.html",
+            headers={"Cache-Control": "no-cache"},
+        )

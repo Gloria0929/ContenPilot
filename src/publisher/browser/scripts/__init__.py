@@ -31,7 +31,13 @@ class BrowserScript:
 
 _MODULES = {
     "juejin": "publisher.browser.scripts.juejin",
-    "xiaohongshu": "publisher.browser.scripts.xiaohongshu",
+    "csdn": "publisher.browser.scripts.csdn",
+    "segmentfault": "publisher.browser.scripts.segmentfault",
+    "freebuf": "publisher.browser.scripts.freebuf",
+    "baijiahao": "publisher.browser.scripts.baijiahao",
+    "qiehao": "publisher.browser.scripts.qiehao",
+    "51cto": "publisher.browser.scripts.cto51",
+    "tencent_cloud": "publisher.browser.scripts.tencent_cloud",
 }
 
 

@@ -59,7 +59,7 @@ def test_full_publish_flow_with_floor(client):
     client.patch(f"/api/articles/{aid}", json={"status": "ready"})
 
     # 创建账号
-    r = client.post("/api/accounts", json={"key": "xhs", "platform": "xiaohongshu", "name": "官方"})
+    r = client.post("/api/accounts", json={"key": "jj", "platform": "juejin", "name": "官方"})
     acc = r.json()["id"]
 
     # 设置 account 层 floor (always + is_floor)
@@ -77,8 +77,8 @@ def test_full_publish_flow_with_floor(client):
 
     # 发布：应创建 waiting_review 任务
     r = client.post("/api/publish", json={
-        "article_id": aid, "platforms": ["xiaohongshu"],
-        "account_ids": {"xiaohongshu": acc},
+        "article_id": aid, "platforms": ["juejin"],
+        "account_ids": {"juejin": acc},
     })
     assert r.status_code == 200
     tasks = r.json()
@@ -154,7 +154,7 @@ def test_account_delete_with_browser_session(client):
 
     s = SessionLocal()
     try:
-        s.add(BrowserSession(account_id=acc, platform="xiaohongshu", status="idle"))
+        s.add(BrowserSession(account_id=acc, platform="juejin", status="idle"))
         s.commit()
     finally:
         s.close()
@@ -191,7 +191,7 @@ def test_ai_cannot_relax_floor_locked(client):
     r = client.post("/api/articles", json={"title": "t", "content": "c"})
     aid = r.json()["id"]
     client.patch(f"/api/articles/{aid}", json={"status": "ready"})
-    r = client.post("/api/accounts", json={"key": "xhs2", "platform": "xiaohongshu"})
+    r = client.post("/api/accounts", json={"key": "jj2", "platform": "juejin"})
     acc = r.json()["id"]
     client.post("/api/policies", json={
         "scope_type": "account", "scope_id": acc,
@@ -206,7 +206,7 @@ def test_ai_cannot_relax_floor_locked(client):
     # 应被 403 拒绝——session 优先于 API Key，故必须新建不带 cookie 的 client。
     with TestClient(app) as ai_client:  # 不登录，无 session cookie
         r = ai_client.post("/api/publish", headers={"Authorization": f"Bearer {key}"}, json={
-            "article_id": aid, "platforms": ["xiaohongshu"],
-            "account_ids": {"xiaohongshu": acc}, "review_override": "never",
+            "article_id": aid, "platforms": ["juejin"],
+            "account_ids": {"juejin": acc}, "review_override": "never",
         })
     assert r.status_code == 403
