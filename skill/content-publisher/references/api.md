@@ -1,9 +1,10 @@
-# REST API 兜底调用手册
+# REST API 调用手册
 
-本机没有 `publisher` 命令时，通过 REST API 完成全部操作。密钥来自
-`~/.contentpilot/api_client.json`（或环境变量 `CONTENTPILOT_BASE_URL` /
-`CONTENTPILOT_ACCESS_KEY` / `CONTENTPILOT_SECRET_KEY`），在 Web 设置页
-「API 密钥」中生成。
+存在 `~/.contentpilot/api_client.json`（或设置了 `CONTENTPILOT_BASE_URL`
+环境变量）时，通过 REST API 完成全部操作，`base_url` 指向哪台服务就调
+哪台（服务器或本机均可）。密钥来自 `~/.contentpilot/api_client.json`
+（或环境变量 `CONTENTPILOT_BASE_URL` / `CONTENTPILOT_ACCESS_KEY` /
+`CONTENTPILOT_SECRET_KEY`），在目标服务器 Web 设置页「API 密钥」中生成。
 
 ## 鉴权
 

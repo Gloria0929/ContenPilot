@@ -50,7 +50,7 @@ import { Promotion } from "@element-plus/icons-vue";
 import { login } from "../auth";
 
 const router = useRouter();
-const username = ref("admin");
+const username = ref("");
 const password = ref("");
 const loading = ref(false);
 const error = ref("");

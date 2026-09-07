@@ -406,7 +406,7 @@ npm run build  # 产出 dist/ 并自动部署到 ~/.contentpilot/web_dist（后�
 
 `skill/content-publisher/` 提供给 AI Agent 使用的 Skill（SKILL.md + 参考文档 + 示例）：AI 通过 CLI/API 完成内容生产与发布调度，但不得绕过 Policy Resolver、不得读取任何凭据（token / cookie / storage_state）。
 
-Skill 的调用策略为「CLI 优先、REST API 兜底」：本机存在 `publisher` 命令时直接用 CLI；否则读取 `~/.contentpilot/api_client.json`（或 `CONTENTPILOT_BASE_URL` / `CONTENTPILOT_ACCESS_KEY` / `CONTENTPILOT_SECRET_KEY` 环境变量），以 Bearer `ak:sk` 凭证调用 REST API。完整的 CLI ↔ REST 端点映射见 `skill/content-publisher/references/api.md`。详细设计文档见 `docs/`（README.md、TECHNICAL_REQUIREMENTS_V2.2.md）。
+Skill 的调用策略为「配置文件决定」：存在 `~/.contentpilot/api_client.json`（或设置了 `CONTENTPILOT_BASE_URL` / `CONTENTPILOT_ACCESS_KEY` / `CONTENTPILOT_SECRET_KEY` 环境变量）时以 Bearer `ak:sk` 凭证调用 REST API，`base_url` 指向哪台服务就调哪台（服务器或本机均可）；无配置文件时使用本机 `publisher` CLI（直接操作本机数据库）。完整的 CLI ↔ REST 端点映射见 `skill/content-publisher/references/api.md`。详细设计文档见 `docs/`（README.md、TECHNICAL_REQUIREMENTS_V2.2.md）。
 
 ## 测试
 
