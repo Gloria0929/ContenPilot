@@ -781,21 +781,22 @@ def auth_login(
         if not auth.login(username, password):
             console.print("[red]登录失败：用户名或密码错误[/red]")
             raise typer.Exit(1)
-        # 撤销旧的 cli key，避免重复 login 堆积
+        # 删除旧的 cli key，避免重复 login 堆积
         for key in auth.list_api_keys():
-            if key.name == CLI_KEY_NAME and not key.revoked_at:
-                auth.revoke_api_key(key.id)
-        raw = auth.create_api_key(CLI_KEY_NAME)
+            if key.name == CLI_KEY_NAME:
+                auth.delete_api_key(key.id)
+        access_key, secret_key = auth.create_api_key(CLI_KEY_NAME)
+        raw = f"{access_key}:{secret_key}"
     finally:
         s.close()
     _save_cli_token(raw)
     console.print(f"已登录（{username}），token 已保存到 {CLI_TOKEN_FILE}")
-    console.print(f"该 token 也可用于 REST API：Authorization: Bearer {raw[:8]}…")
+    console.print(f"该 token 也可用于 REST API：Authorization: Bearer {access_key}:{secret_key[:8]}…")
 
 
-@auth_app.command("logout", help="撤销当前 CLI 登录态（revoke API Key 并删除本地 token 文件）")
+@auth_app.command("logout", help="撤销当前 CLI 登录态（删除 API Key 并删除本地 token 文件）")
 def auth_logout():
-    """撤销当前 CLI 登录态（revoke API Key 并删除本地 token 文件）。"""
+    """撤销当前 CLI 登录态（删除 API Key 并删除本地 token 文件）。"""
     from ..auth import AuthService
 
     raw = _load_cli_token()
@@ -807,7 +808,7 @@ def auth_logout():
         auth = AuthService(s)
         key = auth.validate_api_key(raw)
         if key:
-            auth.revoke_api_key(key.id)
+            auth.delete_api_key(key.id)
     finally:
         s.close()
     _clear_cli_token()

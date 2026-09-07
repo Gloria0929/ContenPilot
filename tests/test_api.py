@@ -199,8 +199,8 @@ def test_ai_cannot_relax_floor_locked(client):
     })
 
     # 创建无 override 权限的 API Key
-    r = client.post("/api/auth/api_keys", params={"name": "nooverride", "allow_override_review": False})
-    key = r.json()["key"]
+    r = client.post("/api/auth/api_keys", json={"name": "nooverride", "allow_override_review": False})
+    key = f'{r.json()["access_key"]}:{r.json()["secret_key"]}'
 
     # 用「纯 API Key」（无 session cookie，模拟 AI Skill）尝试 review_override=never，
     # 应被 403 拒绝——session 优先于 API Key，故必须新建不带 cookie 的 client。

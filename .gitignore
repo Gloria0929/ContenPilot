@@ -16,6 +16,7 @@ logs/
 *.db-wal
 *.db-shm
 .env
+api_client.json
 
 # 浏览器 storage_state（含登录态，禁止提交）
 storage_state/

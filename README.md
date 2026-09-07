@@ -180,15 +180,34 @@ publisher auth whoami
 publisher auth logout
 ```
 
-登录后 API Key 持久化到 `data/cli_session.json`（权限 600，仅当前用户可读），跨进程生效；重复 login 自动撤销旧 key。该 token 同时可用于 REST API：`Authorization: Bearer pk_...`。logout 会同时撤销数据库中的 key 并删除本地文件。
+登录后 API Key 持久化到 `data/cli_session.json`（权限 600，仅当前用户可读），跨进程生效；重复 login 自动删除旧 key。该凭证同时可用于 REST API：`Authorization: Bearer ak_...:sk_...`。logout 会同时删除数据库中的 key 并删除本地文件。
+
+### API 密钥（Access Key / Secret Key）
+
+Web 设置页「API 密钥」可生成密钥对，供外部程序（AI Skill、脚本等）调用 REST API：
+
+- **Access Key**（`ak_...`）：明文标识，可在列表中查看
+- **Secret Key**（`sk_...`）：仅在生成时显示一次，服务端只存哈希
+- 调用时组合为 Bearer 凭证：`Authorization: Bearer <access_key>:<secret_key>`
+- 支持按密钥授予「允许跳过审核」（`--no-review`）权限；删除密钥立即生效
+
+推荐将密钥写入客户端配置文件 `~/.contentpilot/api_client.json`（权限 600）：
+
+```json
+{
+  "base_url": "http://127.0.0.1:8000",
+  "access_key": "ak_...",
+  "secret_key": "sk_..."
+}
+```
 
 ## REST API 概览
 
-所有接口挂载在 `/api` 前缀下（除登录外均需鉴权：HttpOnly Cookie 会话 或 `Authorization: Bearer <API Key>`）：
+所有接口挂载在 `/api` 前缀下（除登录外均需鉴权：HttpOnly Cookie 会话 或 `Authorization: Bearer <access_key>:<secret_key>`）：
 
 | 分组 | 端点 |
 |---|---|
-| 鉴权 | `POST /auth/login`、`POST /auth/logout`、`GET /auth/whoami`、`GET|POST /auth/api_keys` |
+| 鉴权 | `POST /auth/login`、`POST /auth/logout`、`GET /auth/whoami`、`GET|POST /auth/api_keys`、`DELETE /auth/api_keys/{id}` |
 | 文章 | `GET|POST /articles`、`GET|PATCH|DELETE /articles/{id}`、`GET /articles/{id}/versions` |
 | 策略 | `GET|POST /policies`、`GET /policies/resolve` |
 | 审核 | `GET /reviews`、`POST /reviews/{id}/approve|reject|refresh` |
@@ -377,11 +396,13 @@ npm run build  # 产出 dist/（后端存在 web/dist 时自动托管）
 - **账号管理** — 账号增删改、状态（active / auth_expired / cooling / disabled）
 - **平台与会话** — 平台模式、浏览器会话与账号锁状态
 - **发布日志** — 全量事件日志查询（按任务/级别过滤）
-- **设置** — 运行时开关（内容安全兜底检测）
+- **设置** — 运行时开关（内容安全兜底检测）、API 密钥管理（生成/删除 Access Key / Secret Key）
 
 ## AI Agent Skill
 
-`skill/content-publisher/` 提供给 AI Agent 使用的 Skill（SKILL.md + 参考文档 + 示例）：AI 通过 CLI/API 完成内容生产与发布调度，但不得绕过 Policy Resolver、不得读取任何凭据（token / cookie / storage_state）。详细设计文档见 `docs/`（README.md、TECHNICAL_REQUIREMENTS_V2.2.md）。
+`skill/content-publisher/` 提供给 AI Agent 使用的 Skill（SKILL.md + 参考文档 + 示例）：AI 通过 CLI/API 完成内容生产与发布调度，但不得绕过 Policy Resolver、不得读取任何凭据（token / cookie / storage_state）。
+
+Skill 的调用策略为「CLI 优先、REST API 兜底」：本机存在 `publisher` 命令时直接用 CLI；否则读取 `~/.contentpilot/api_client.json`（或 `CONTENTPILOT_BASE_URL` / `CONTENTPILOT_ACCESS_KEY` / `CONTENTPILOT_SECRET_KEY` 环境变量），以 Bearer `ak:sk` 凭证调用 REST API。完整的 CLI ↔ REST 端点映射见 `skill/content-publisher/references/api.md`。详细设计文档见 `docs/`（README.md、TECHNICAL_REQUIREMENTS_V2.2.md）。
 
 ## 测试
 

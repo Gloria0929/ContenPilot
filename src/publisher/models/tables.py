@@ -221,15 +221,18 @@ class BrowserSession(TimestampMixin, Base):
 
 class APIKey(TimestampMixin, Base):
     __tablename__ = "api_keys"
+    __table_args__ = (
+        Index("uq_api_keys_access_key", "access_key", unique=True),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     name: Mapped[str] = mapped_column(String(128), default="")
+    # Access Key（明文标识，可列表展示）+ Secret Key 哈希。
+    # 完整凭证格式为 "ak_...:sk_..."；旧的单 token（pk_...）仍按 key_hash 直查兼容。
+    access_key: Mapped[str | None] = mapped_column(String(64), nullable=True)
     key_hash: Mapped[str] = mapped_column(String(256), unique=True)
     allow_override_review: Mapped[bool] = mapped_column(Boolean, default=False)
     last_used_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
-    revoked_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
 

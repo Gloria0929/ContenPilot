@@ -5,9 +5,9 @@ services:
       - "8000:8000"   # Web API
       - "6080:6080"   # noVNC 可视化人工接管
     environment:
-      - PUBLISHER_ADMIN_USERNAME=admin
-      - PUBLISHER_ADMIN_PASSWORD=admin
-      - PUBLISHER_SESSION_SECRET=change-me-please
+      - PUBLISHER_ADMIN_USERNAME=allthinker
+      - PUBLISHER_ADMIN_PASSWORD=allthinker
+      - PUBLISHER_SESSION_SECRET=xWnthljAOpIOoK2PDo7EIkAI5dMzEJOWTJ/FSZwSIOs=
       - HEADLESS=false
       - PUBLISHER_HEADLESS=false
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}

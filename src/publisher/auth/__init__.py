@@ -73,32 +73,54 @@ class AuthService:
 
     def create_api_key(
         self, name: str, allow_override_review: bool = False
-    ) -> str:
-        raw = f"pk_{secrets.token_urlsafe(24)}"
+    ) -> tuple[str, str]:
+        """生成 Access Key / Secret Key 密钥对。
+
+        - Access Key（ak_...）：明文标识，存库可展示；
+        - Secret Key（sk_...）：仅此一次返回明文，库里只存哈希。
+        API 调用时使用完整凭证 "ak_...:sk_..." 作为 Bearer。
+        """
+        access_key = f"ak_{secrets.token_urlsafe(9)}"
+        secret_key = f"sk_{secrets.token_urlsafe(24)}"
         key = APIKey(
             name=name,
-            key_hash=hash_secret(raw),
+            access_key=access_key,
+            key_hash=hash_secret(secret_key),
             allow_override_review=allow_override_review,
         )
         self.session.add(key)
         self.session.commit()
-        return raw
+        return access_key, secret_key
 
     def validate_api_key(self, raw: str) -> APIKey | None:
-        key_hash = hash_secret(raw)
-        key = self.session.scalar(
-            select(APIKey).where(APIKey.key_hash == key_hash)
-        )
-        if not key or key.revoked_at:
+        """校验凭证。支持：
+        - "ak_...:sk_..."（Access Key 定位 + Secret Key 哈希比对）
+        - 旧格式单 token（pk_... / sk_...，直接哈希直查）
+        """
+        key: APIKey | None = None
+        if raw.startswith("ak_") and ":" in raw:
+            ak, sk = raw.split(":", 1)
+            key = self.session.scalar(
+                select(APIKey).where(APIKey.access_key == ak)
+            )
+            if not key or not hmac.compare_digest(
+                hash_secret(sk), key.key_hash
+            ):
+                return None
+        else:
+            key = self.session.scalar(
+                select(APIKey).where(APIKey.key_hash == hash_secret(raw))
+            )
+        if not key:
             return None
         key.last_used_at = _utcnow()
         self.session.commit()
         return key
 
-    def revoke_api_key(self, key_id: int) -> None:
+    def delete_api_key(self, key_id: int) -> None:
         key = self.session.get(APIKey, key_id)
         if key:
-            key.revoked_at = _utcnow()
+            self.session.delete(key)
             self.session.commit()
 
     def list_api_keys(self) -> list[APIKey]:
@@ -106,5 +128,5 @@ class AuthService:
 
 
 def has_override_review_permission(api_key: APIKey | None) -> bool:
-    """是否具备突破下限的权限（文档第 12 节）。"""
+    """是否具备突破下限的权限"""
     return bool(api_key and api_key.allow_override_review)

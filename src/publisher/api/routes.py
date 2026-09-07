@@ -9,7 +9,9 @@ from sqlalchemy.orm import Session
 
 from ..auth import AuthService
 from ..events import event_bus
+from ..models import APIKey
 from ..schemas import (
+    ApiKeyCreate,
     ArticleIn,
     ArticleOut,
     ArticleUpdate,
@@ -67,17 +69,46 @@ def whoami(auth=Depends(get_current_auth)):
 
 @router.get("/auth/api_keys")
 def list_api_keys(db: Session = Depends(get_db), auth=Depends(get_current_auth)):
-    return [{"id": k.id, "name": k.name, "allow_override_review": k.allow_override_review}
-            for k in AuthService(db).list_api_keys()]
+    return [
+        {
+            "id": k.id,
+            "name": k.name,
+            "access_key": k.access_key,
+            "allow_override_review": k.allow_override_review,
+            "created_at": k.created_at,
+            "last_used_at": k.last_used_at,
+        }
+        for k in AuthService(db).list_api_keys()
+    ]
 
 
 @router.post("/auth/api_keys")
 def create_api_key(
-    name: str = "default", allow_override_review: bool = False,
-    db: Session = Depends(get_db), auth=Depends(get_current_auth),
+    payload: ApiKeyCreate,
+    db: Session = Depends(get_db),
+    auth=Depends(get_current_auth),
 ):
-    key = AuthService(db).create_api_key(name, allow_override_review)
-    return {"key": key, "allow_override_review": allow_override_review}
+    """生成 Access Key / Secret Key 密钥对。Secret Key 仅此一次返回。"""
+    access_key, secret_key = AuthService(db).create_api_key(
+        payload.name, payload.allow_override_review
+    )
+    return {
+        "access_key": access_key,
+        "secret_key": secret_key,
+        "allow_override_review": payload.allow_override_review,
+    }
+
+
+@router.delete("/auth/api_keys/{key_id}")
+def delete_api_key(
+    key_id: int, db: Session = Depends(get_db), auth=Depends(get_current_auth)
+):
+    """删除 API Key（不可恢复）。"""
+    key = db.get(APIKey, key_id)
+    if not key:
+        raise HTTPException(404, "not found")
+    AuthService(db).delete_api_key(key_id)
+    return {"ok": True}
 
 
 # ---- Articles ----

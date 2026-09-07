@@ -35,12 +35,33 @@ engine = _make_engine()
 SessionLocal = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
 
 
+def _migrate(engine) -> None:
+    """轻量迁移：create_all 不会给已有表补列，此处显式处理。"""
+    from sqlalchemy import inspect, text
+
+    insp = inspect(engine)
+    if "api_keys" in insp.get_table_names():
+        cols = {c["name"] for c in insp.get_columns("api_keys")}
+        with engine.begin() as conn:
+            if "access_key" not in cols:
+                conn.execute(
+                    text("ALTER TABLE api_keys ADD COLUMN access_key VARCHAR(64)")
+                )
+            conn.execute(
+                text(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS uq_api_keys_access_key "
+                    "ON api_keys(access_key)"
+                )
+            )
+
+
 def init_db() -> None:
     from . import models  # noqa: F401  确保所有模型已注册
     from .platforms.registry import sync_platforms
 
     settings.ensure_dirs()  # 确保 data/uploads/logs 目录存在
     Base.metadata.create_all(bind=engine)
+    _migrate(engine)
     # 平台注册表 → platforms 表（幂等）：platform 级策略与浏览器锁判断依赖此表
     session = SessionLocal()
     try:

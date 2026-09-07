@@ -20,6 +20,38 @@ description: 指导 AI 使用 AI Content Publisher 系统进行内容生成、�
 4. **敏感信息**：你永远不能读取 access_token / cookie / storage_state。
 5. **服务先启动**：CLI 大部分命令直接操作数据库可用，但发布任务由
    Worker 执行——需要 `publisher server` 在运行（API + Worker 同进程）。
+6. **调用方式优先级**：本机有 `publisher` 命令时优先用 CLI；没有时读取
+   API 配置文件，用 REST API 兜底完成（见下节）。
+
+## 调用方式：CLI 优先，REST API 兜底
+
+按以下顺序确定调用方式（每次会话开始时判定一次即可）：
+
+1. **检测 CLI**：`command -v publisher`，或在项目目录尝试
+   `PYTHONPATH=src python -m publisher --help`。可用 → 全程使用 CLI 命令。
+2. **无 CLI → 读取 API 配置文件** `~/.contentpilot/api_client.json`：
+
+   ```json
+   {
+     "base_url": "http://127.0.0.1:8000",
+     "access_key": "ak_...",
+     "secret_key": "sk_..."
+   }
+   ```
+
+   也可用环境变量 `CONTENTPILOT_BASE_URL` / `CONTENTPILOT_ACCESS_KEY` /
+   `CONTENTPILOT_SECRET_KEY` 代替。调用时统一携带请求头：
+
+   ```
+   Authorization: Bearer <access_key>:<secret_key>
+   ```
+
+   所有 CLI 能力均有对应 REST API，端点映射与 curl 示例见
+   `references/api.md`。
+3. **都不可用** → 引导用户：在 Web 设置页「API 密钥」中生成密钥，把
+   base_url / access_key / secret_key 写入 `~/.contentpilot/api_client.json`
+   （文件权限设为 600），然后重试。密钥视同密码：不要写入其他文件、
+   日志或提交到版本库。
 
 ## 能力清单
 
@@ -174,4 +206,5 @@ Trace（zip），日志可通过 API `GET /tasks/{id}/logs` 或 Web 发布日志
 
 
 - 各平台差异见 `references/platforms.md`
+- REST API 端点映射与 curl 示例见 `references/api.md`
 - 使用示例见 `examples/publish_flow.md`

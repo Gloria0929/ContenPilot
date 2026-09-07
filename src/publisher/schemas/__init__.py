@@ -11,6 +11,13 @@ class ORMModel(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+# ---- API Key ----
+
+class ApiKeyCreate(BaseModel):
+    name: str = Field(default="default", max_length=128)
+    allow_override_review: bool = False
+
+
 # ---- Article ----
 
 class ArticleIn(BaseModel):
