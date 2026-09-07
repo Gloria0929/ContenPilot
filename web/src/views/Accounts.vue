@@ -276,10 +276,6 @@ onMounted(load);
 </script>
 
 <style scoped>
-.accounts {
-  max-width: 1100px;
-}
-
 .toolbar {
   margin: 16px 0;
 }

@@ -89,15 +89,24 @@ const levelLabel: Record<string, string> = {
   error: "错误",
 };
 
-// 事件名 → 中文（与后端 LogService 事件一一对应）
+// 事件名 → 中文（与后端 LogService / Worker / Browser 层事件一一对应）
 const eventLabel: Record<string, string> = {
   task_created: "任务已创建",
   task_retry: "任务重试",
+  waiting_review: "等待审核",
   waiting_auth: "等待授权",
   waiting_manual: "等待人工",
   publish_success: "发布成功",
   publish_failed: "发布失败",
   publish_unconfirmed: "发布结果未确认",
+  "task.timeout": "任务超时",
+  browser_started: "浏览器任务启动",
+  login_checked: "登录状态检查",
+  page_opened: "打开发布页面",
+  content_filled: "内容填写提交",
+  submit_clicked: "发布按钮已点击",
+  review_refreshed: "审核版本已刷新",
+  policy_override: "策略覆盖（审计）",
 };
 
 // message 美化：原样多为 "platform=xxx" / 文章链接
@@ -134,9 +143,6 @@ onUnmounted(() => es?.close());
 </script>
 
 <style scoped>
-.logs {
-  max-width: 1100px;
-}
 .toolbar {
   display: flex;
   gap: 12px;

@@ -228,9 +228,6 @@ onUnmounted(() => es?.close());
 </script>
 
 <style scoped>
-.review {
-  max-width: 1280px;
-}
 .ver {
   display: inline-flex;
   align-items: center;

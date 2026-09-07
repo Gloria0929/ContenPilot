@@ -457,7 +457,7 @@ onMounted(load);
   height: auto;
 }
 .articles {
-  max-width: 1100px;
+  width: 100%;
 }
 .toolbar {
   margin: 16px 0;
