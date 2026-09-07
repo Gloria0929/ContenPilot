@@ -73,7 +73,7 @@ description: 指导 AI 使用 AI Content Publisher 系统进行内容生成、�
 - 查询最终策略（只读）：`publisher policy resolve [--platform juejin] [--account-id N] [--article-id N] [--task-id N] [--json]`
 - 设置分层策略：`publisher policy set <scope> [scope_id] [--review always|optional|never] [--publish automatic|manual|scheduled|disabled] [--floor] [--clear]`
 - 鉴权：`publisher auth login [-u 用户名] [-p 密码]` / `auth logout` / `auth whoami`
-  （登录态持久化到 `data/cli_session.json`，token 同时可用于 REST API Bearer 认证）
+  （登录态持久化到 `~/.contentpilot/data/cli_session.json`，token 同时可用于 REST API Bearer 认证）
 
 ## 文章状态前置条件
 

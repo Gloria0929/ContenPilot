@@ -47,7 +47,7 @@ Web、CLI、AI Agent Skill 三种使用方式共享同一套 Publisher Core：�
   - `blocked`：已点击发布但无法确认结果，禁止自动重试，防止重复发布
 - **策略 (Policy)** — 审核模式（always / optional / never）与发布模式（automatic / manual / scheduled / disabled），按 global → platform → account → article → task 级联覆盖；platform/account 层可设 `--floor` 下限，下游不可调松
 - **Worker** — 后台轮询执行任务，同进程随 server 启动；处理重试、超时、账号浏览器互斥锁
-- **内容安全兜底** — 独立于审核策略的违禁词检测，命中转 `waiting_manual`；可在 Web 设置页关闭，自定义词库放 `data/banned_words.json`
+- **内容安全兜底** — 独立于审核策略的违禁词检测，命中转 `waiting_manual`；可在 Web 设置页关闭，自定义词库放 `~/.contentpilot/data/banned_words.json`
 
 ## 快速开始（本机）
 
@@ -180,7 +180,7 @@ publisher auth whoami
 publisher auth logout
 ```
 
-登录后 API Key 持久化到 `data/cli_session.json`（权限 600，仅当前用户可读），跨进程生效；重复 login 自动删除旧 key。该凭证同时可用于 REST API：`Authorization: Bearer ak_...:sk_...`。logout 会同时删除数据库中的 key 并删除本地文件。
+登录后 API Key 持久化到 `~/.contentpilot/data/cli_session.json`（权限 600，仅当前用户可读），跨进程生效；重复 login 自动删除旧 key。该凭证同时可用于 REST API：`Authorization: Bearer ak_...:sk_...`。logout 会同时删除数据库中的 key 并删除本地文件。
 
 ### API 密钥（Access Key / Secret Key）
 
@@ -302,6 +302,10 @@ docker compose exec publisher publisher browser login csdn -a csdn_default
 | `./uploads` | 上传文件 |
 | `./logs` | 日志与诊断信息（截图 / Trace） |
 
+> 注意：容器内通过 `PUBLISHER_DATA_DIR=/data` 等 ENV 固定路径，与本机部署的
+> `~/.contentpilot/` 相互独立——本机 CLI 与容器 Worker 不会共享同一个 SQLite
+> 文件（避免并发访问导致 disk I/O error）。
+
 ### 环境变量
 
 | 变量 | 默认 | 说明 |
@@ -363,7 +367,7 @@ Worker 启动时会自动把遗留的 `processing` 孤儿任务复位回 `queued
 | `PUBLISHER_DATABASE_URL` | 空（用 SQLite） | 自定义数据库连接串 |
 | `PUBLISHER_HOST` / `PUBLISHER_PORT` | `127.0.0.1` / `8000` | 监听地址 |
 | `PUBLISHER_SESSION_MAX_AGE` | `604800` | 会话有效期（秒） |
-| `PUBLISHER_ENCRYPTION_KEY` | 空（自动生成 `data/secret.key`） | 账号凭据加密密钥；显式设置时优先生效，更换后旧凭据需重新录入 |
+| `PUBLISHER_ENCRYPTION_KEY` | 空（自动生成 `~/.contentpilot/data/secret.key`） | 账号凭据加密密钥；显式设置时优先生效，更换后旧凭据需重新录入 |
 | `PUBLISHER_WORKER_POLL_INTERVAL` | `1.0` | Worker 轮询间隔（秒） |
 | `PUBLISHER_MAX_ATTEMPTS_DEFAULT` | `3` | 任务最大自动重试次数 |
 | `PUBLISHER_MIN_PUBLISH_INTERVAL_SECONDS` | `300` | 同账号最小发布间隔 |
@@ -383,7 +387,7 @@ Worker 启动时会自动把遗留的 `processing` 孤儿任务复位回 `queued
 cd web
 npm install
 npm run dev    # http://localhost:5173 ，/api 代理到 127.0.0.1:8000
-npm run build  # 产出 dist/（后端存在 web/dist 时自动托管）
+npm run build  # 产出 dist/ 并自动部署到 ~/.contentpilot/web_dist（后端优先从该处托管）
 ```
 
 页面（Element Plus + 中文 locale，任务/日志/审核/平台页通过 SSE `/api/events` 实时刷新）：

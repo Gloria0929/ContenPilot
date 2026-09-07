@@ -19,14 +19,17 @@ _DEFAULT_WORDS = [
     "欺诈",
 ]
 
-_CUSTOM_WORDS_FILE = Path("data") / "banned_words.json"
+def _custom_words_file() -> Path:
+    # 自定义词库跟随 data_dir 配置（默认 ~/.contentpilot/data/）
+    return settings.data_dir / "banned_words.json"
 
 
 def load_banned_words() -> list[str]:
     words = list(_DEFAULT_WORDS)
     try:
-        if _CUSTOM_WORDS_FILE.exists():
-            data = json.loads(_CUSTOM_WORDS_FILE.read_text(encoding="utf-8"))
+        f = _custom_words_file()
+        if f.exists():
+            data = json.loads(f.read_text(encoding="utf-8"))
             words.extend(data.get("words", []))
     except Exception:
         pass

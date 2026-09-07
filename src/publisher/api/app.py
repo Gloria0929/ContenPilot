@@ -35,10 +35,17 @@ app.add_middleware(
 
 app.include_router(routes.router, prefix="/api")  # 前端 baseURL=/api，生产/开发统一前缀
 
-# ---- 前端静态托管（web/dist 存在时生效）----
+# ---- 前端静态托管 ----
+# 查找顺序：~/.contentpilot/web_dist（打包产物统一数据根，任意 cwd 可启动）
+# → ./web/dist（项目内开发构建，兼容旧行为）。Docker 镜像内为 /app/web/dist。
 
-_web_dist = Path.cwd() / "web" / "dist"
-if (_web_dist / "index.html").is_file():
+_candidate_dirs = (
+    Path.home() / ".contentpilot" / "web_dist",
+    Path.cwd() / "web" / "dist",
+)
+_web_dist = next((d for d in _candidate_dirs if (d / "index.html").is_file()), None)
+
+if _web_dist is not None:
     _assets_dir = _web_dist / "assets"
     if _assets_dir.is_dir():
         app.mount("/assets", StaticFiles(directory=_assets_dir), name="assets")

@@ -6,6 +6,10 @@ from pathlib import Path
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+# 统一数据根目录：数据库、日志、上传文件等全部落在 ~/.contentpilot/ 下。
+# Docker 镜像内通过 ENV 显式覆盖为 /data 等（见 Dockerfile）。
+_CONTENTPILOT_HOME = Path.home() / ".contentpilot"
+
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
@@ -16,9 +20,9 @@ class Settings(BaseSettings):
     )
 
     # 数据目录
-    data_dir: Path = Path("./data")
-    uploads_dir: Path = Path("./uploads")
-    logs_dir: Path = Path("./logs")
+    data_dir: Path = _CONTENTPILOT_HOME / "data"
+    uploads_dir: Path = _CONTENTPILOT_HOME / "uploads"
+    logs_dir: Path = _CONTENTPILOT_HOME / "logs"
 
     # 数据库
     database_url: str = ""  # 留空则使用 data_dir 下的 SQLite
@@ -32,7 +36,7 @@ class Settings(BaseSettings):
     admin_password: str = "admin"  # 生产环境必须通过环境变量覆盖
 
     # 鉴权
-    session_secret: str = "change-me-session-secret"
+    session_secret: str = "QnvlzGlE/lam7u/M7shMg27STNfMi+CQtyrpw3VUH4s="
     session_max_age: int = 60 * 60 * 24 * 7  # 7 天
 
     # Worker
