@@ -4,7 +4,7 @@
 
 ```bash
 # 1. 首次：添加带凭据的账号（令牌加密存储）
-publisher account add cnblogs cnblogs_Gloria0816 --name Gloria0816 \
+publisher account add cnblogs --key cnblogs_Gloria0816 --name Gloria0816 \
   --username Gloria0816 --token <MetaWeblog令牌>
 
 # 2. 创建文章并置为 ready
@@ -42,15 +42,36 @@ publisher task show 2
 ```bash
 publisher publish 3
 # task #3 platform=juejin        review=never   publish=automatic status=queued
-# task #4 platform=xiaohongshu   review=always  publish=automatic status=waiting_review
+# task #4 platform=freebuf       review=always  publish=automatic status=waiting_review
 
-# 小红书需要人工审核
+# FreeBuf 为投稿制，需人工审核
 publisher review list
 publisher review approve <review_id>
 #   publish=automatic → 任务自动转 queued 发布
 #   publish=manual    → 任务转 pending，需 resume 放行
 publisher task resume 4   # 仅 manual 策略需要
 ```
+
+## 场景 C2：新增浏览器平台（CSDN / 百家号 / 企鹅号等）
+
+新增平台与掘金同一套流程，仅 `browser login` 的平台名不同：
+
+```bash
+publisher browser login csdn          # 或 baijiahao / qiehao / 51cto /
+                                      # segmentfault / freebuf / tencent_cloud
+# → 登录态已保存: data/browser/csdn/csdn_default.json
+
+publisher publish 5 csdn
+# task #5 platform=csdn review=never publish=automatic status=queued
+```
+
+注意：
+
+- FreeBuf 提交后由平台人工审核，任务 success 仅代表投稿成功；
+- 企鹅号发布成功即分发腾讯系渠道（腾讯网/腾讯新闻等）；
+- 新平台 selector 未经逐站实测，首次发布建议
+  `publisher policy set article <id> --review always` 人工确认后再发；
+  报 selector 失效错误时按 `references/platforms.md` 的指引修正脚本。
 
 ## 场景 D：异常处置
 

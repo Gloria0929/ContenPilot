@@ -34,7 +34,9 @@ description: 指导 AI 使用 AI Content Publisher 系统进行内容生成、�
 - 查询发布状态：`publisher task list` / `task show <id>`
 - 重试 / 恢复 / 取消任务：`publisher task retry <id>` / `task resume <id>` / `task cancel <id>`
 - 查询账号：`publisher account list`
-- 添加 API 账号：`publisher account add <platform> <key> --name ... --username ... --token ...`
+- 添加 API 账号：`publisher account add <platform> --key <key> --name ... --username ... --token ...`
+- 停用/启用账号：`publisher account disable <key|id>` / `account enable <key|id>`
+  （停用后新发布任务被拦截，历史任务保留）
 - 浏览器登录：`publisher browser login <platform> [--account <key>] [--timeout N]`
 - 查询最终策略（只读）：`publisher policy resolve [--platform juejin] [--account-id N] [--article-id N] [--task-id N] [--json]`
 - 设置分层策略：`publisher policy set <scope> [scope_id] [--review always|optional|never] [--publish automatic|manual|scheduled|disabled] [--floor] [--clear]`
@@ -56,7 +58,11 @@ description: 指导 AI 使用 AI Content Publisher 系统进行内容生成、�
 | 模式 | 平台 | 账号要求 | 发布方式 |
 |---|---|---|---|
 | api | cnblogs | `account add` 带 `--username --token`（MetaWeblog 令牌，加密存储） | 官方 API 直调 |
-| browser | juejin / xiaohongshu | `browser login` 保存 storage_state | Playwright 驱动浏览器 |
+| browser | juejin / xiaohongshu / csdn / segmentfault / freebuf / baijiahao / qiehao / 51cto / tencent_cloud | `browser login` 保存 storage_state | Playwright 驱动浏览器 |
+
+平台说明：企鹅号（qiehao）发布后自动分发腾讯网/腾讯新闻等腾讯系渠道；
+FreeBuf（freebuf）为投稿制，提交后需平台人工审核；其余浏览器平台发布后
+由平台侧内容审核（正常流程）。各平台差异详见 `references/platforms.md`。
 
 **浏览器平台发布前必须完成登录**，否则任务进入 `waiting_auth`：
 
@@ -166,6 +172,6 @@ Trace（zip），日志可通过 API `GET /tasks/{id}/logs` 或 Web 发布日志
 
 ## 参考
 
-- 完整技术需求见 `references/TECHNICAL_REQUIREMENTS_V2.2.md`
+
 - 各平台差异见 `references/platforms.md`
 - 使用示例见 `examples/publish_flow.md`
