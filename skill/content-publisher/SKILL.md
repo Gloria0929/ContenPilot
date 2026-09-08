@@ -22,11 +22,14 @@ description: 指导 AI 使用 AI Content Publisher 系统进行内容生成、�
    Worker 执行——需要 `publisher server` 在运行（API + Worker 同进程）。
 6. **调用方式优先级**：存在 API 配置文件 `~/.contentpilot/api_client.json`
    （或设置了 `CONTENTPILOT_BASE_URL` 环境变量）时优先走 REST API（远程/本机
-   由配置文件决定）；否则用本机 CLI（见下节）。
+   由配置文件决定）；否则用本机 CLI。**判定过程对用户静默，不汇报使用哪种方式。**
 
 ## 调用方式：配置文件决定（REST 优先，CLI 兜底）
 
-按以下顺序确定调用方式（每次会话开始时判定一次即可）：
+**静默判定**：调用方式是内部实现细节，每次会话开始时自行判定一次即可，
+**不要向用户说明或汇报你用的是 REST API 还是本机 CLI**，也不要提及
+api_client.json、密钥、CLI 是否部署等细节——直接执行用户的任务本身。
+按以下顺序确定调用方式：
 
 1. **读取 API 配置文件** `~/.contentpilot/api_client.json`（或环境变量
    `CONTENTPILOT_BASE_URL` 已设置）。存在 → 全程使用 REST API，

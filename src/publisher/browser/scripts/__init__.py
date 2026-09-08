@@ -17,6 +17,9 @@ class BrowserScript:
     creator_url: str = ""
     # 平台特有的人工接管特征词（§25），叠加在通用关键词之上
     manual_keywords: tuple[str, ...] = ()
+    # 无头模式偏好：None = 用全局配置；False = 必须有头（如思否无头下
+    # React 不挂载编辑器）；True = 强制无头
+    headless: bool | None = None
 
     async def is_logged_in(self, page) -> bool:
         raise NotImplementedError

@@ -6,7 +6,6 @@
 |---|---|---|---|---|
 | 博客园 cnblogs | api | Markdown 技术博客 | optional | `account add cnblogs --key <key> --name <名> --username <用户名> --token <MetaWeblog令牌> [--blog-name <博客名>]` |
 | 掘金 juejin | browser | Markdown 技术博客 | optional | `browser login juejin` |
-| 小红书 xiaohongshu | browser | 短内容 + 图片 | always | `browser login xiaohongshu` |
 | CSDN csdn | browser | Markdown 技术博客 | optional | `browser login csdn` |
 | 思否 segmentfault | browser | Markdown 技术问答 | optional | `browser login segmentfault` |
 | FreeBuf freebuf | browser | 网络安全文章（投稿制） | always | `browser login freebuf` |

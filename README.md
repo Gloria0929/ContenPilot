@@ -20,7 +20,6 @@ Web、CLI、AI Agent Skill 三种使用方式共享同一套 Publisher Core：�
 |---|---|---|---|
 | 博客园 (cnblogs) | api | `publisher account add cnblogs --username ... --token ...`（MetaWeblog 令牌，Fernet 加密存储） | 官方 MetaWeblog XML-RPC |
 | 掘金 (juejin) | browser | `publisher browser login juejin`（保存 storage_state） | Playwright 驱动浏览器 |
-| 小红书 (xiaohongshu) | browser | `publisher browser login xiaohongshu` | Playwright 驱动浏览器 |
 | CSDN (csdn) | browser | `publisher browser login csdn` | Playwright 驱动浏览器 |
 | 思否 (segmentfault) | browser | `publisher browser login segmentfault` | Playwright 驱动浏览器 |
 | FreeBuf (freebuf) | browser | `publisher browser login freebuf`（投稿后需平台审核） | Playwright 驱动浏览器 |

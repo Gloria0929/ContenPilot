@@ -270,7 +270,19 @@ async function remove(row: any) {
 
 async function copy(text: string) {
   try {
-    await navigator.clipboard.writeText(text);
+    // clipboard API 仅在 HTTPS / localhost 可用，HTTP 访问服务器时降级 execCommand
+    if (navigator.clipboard && window.isSecureContext) {
+      await navigator.clipboard.writeText(text);
+    } else {
+      const ta = document.createElement("textarea");
+      ta.value = text;
+      ta.style.position = "fixed";
+      ta.style.opacity = "0";
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand("copy");
+      document.body.removeChild(ta);
+    }
     ElMessage.success("已复制");
   } catch {
     ElMessage.error("复制失败，请手动选择复制");
@@ -298,10 +310,8 @@ onMounted(() => {
 
 <style scoped>
 .settings {
-  max-width: 920px;
-}
-.apikey-card {
-  margin-top: 16px;
+  display: grid;
+  gap: 16px;
 }
 .apikey-header {
   display: flex;
@@ -329,6 +339,11 @@ onMounted(() => {
 }
 .key-row .el-button {
   flex-shrink: 0;
+}
+/* 去除 Element Plus 相邻按钮默认 margin-left:12px，改为按钮内边距 */
+.key-actions :deep(.el-button + .el-button) {
+  margin-left: 0;
+  padding-left: 27px; /* 默认 15px + 12px 转为内边距 */
 }
 .setting-list {
   display: grid;

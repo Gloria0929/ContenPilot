@@ -12,7 +12,7 @@
 
       <el-form @submit.prevent="onLogin" label-position="top" size="large">
         <el-form-item label="用户名">
-          <el-input v-model="username" placeholder="admin" />
+          <el-input v-model="username" placeholder="请输入用户名" />
         </el-form-item>
         <el-form-item label="密码">
           <el-input

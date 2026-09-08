@@ -204,7 +204,8 @@ async def run_browser_publish(
 
     diag = f"{platform}_{task_id or 'na'}"
     result: PublishResult | None = None
-    worker = BrowserWorker()
+    # 脚本可声明无头偏好（如思否无头下编辑器不挂载），None 用全局配置
+    worker = BrowserWorker(headless=script.headless)
     page = None
     try:
         ctx = await worker.start(storage_state=str(state_path))
@@ -229,8 +230,12 @@ async def run_browser_publish(
             return result
 
         # 人工接管检测（§25）：验证码/风控 → waiting_manual
+        # 只查可见文本：整页 HTML 会把 geetest 等脚本 URL 里的
+        # "captcha" 误判为验证码（思否实测误报）
         try:
-            body = await page.content()
+            body = await page.evaluate(
+                "() => document.body ? document.body.innerText : ''"
+            )
         except Exception:
             body = ""
         reason = detect_manual_intervention(body, script.manual_keywords)
