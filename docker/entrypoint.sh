@@ -24,10 +24,12 @@ if [ "$HEADLESS" = "false" ]; then
   done
   echo "Starting x11vnc (supervised)"
   # x11vnc 失败/Xvfb 重启期间短暂失联都会退出，同样自动重试
+  # -shared：允许多客户端同时连（内嵌 iframe 与「新窗口打开」会各占一个连接，
+  #          缺省单客户端会让后连的踢掉先连的，表现为新窗口「已断开连接」）
   (
     set +e
     while true; do
-      x11vnc -display :99 -forever -nopw -listen 0.0.0.0 -xkb
+      x11vnc -display :99 -forever -nopw -shared -listen 0.0.0.0 -xkb
       echo "x11vnc exited (code $?), retry in 1s" >&2
       sleep 1
     done

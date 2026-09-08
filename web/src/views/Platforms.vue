@@ -236,10 +236,12 @@ const busyCount = computed(
   () => sessions.value.filter((s) => s.status === "busy").length,
 );
 
-// 直连 noVNC（跨端口 iframe 展示与操作均正常，websockify 直连 :6080）
+// 直连 noVNC（跨端口 iframe 展示与操作均正常，websockify 直连 :6080）。
+// 必须带 autoconnect=1，否则 vnc.html 加载后停在连接设置面板不自动连，
+// 新窗口打开会表现为「连不上」。
 const vncExternal = computed(
   () =>
-    `${window.location.protocol}//${window.location.hostname}:6080/vnc.html`,
+    `${window.location.protocol}//${window.location.hostname}:6080/vnc.html?autoconnect=1&resize=scale`,
 );
 const vncFrame = computed(
   () =>
