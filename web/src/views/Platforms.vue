@@ -101,8 +101,8 @@
         </div>
       </template>
       <p class="vnc-hint">
-        点击「打开登录」会在服务器打开该平台的浏览器登录页（显示在下方
-        noVNC 画面中），完成登录后自动保存登录态；若有等待授权的任务也会自动恢复。
+        点击「打开登录」会在服务器打开该平台的浏览器登录页（显示在下方 noVNC
+        画面中），完成登录后自动保存登录态；若有等待授权的任务也会自动恢复。
       </p>
       <el-table :data="browserAccounts">
         <el-table-column type="index" label="ID" min-width="56" />
@@ -245,9 +245,7 @@ const vncFrame = computed(
 // 浏览器平台的账号（登录入口只对 browser 模式有意义）
 const browserAccounts = computed(() =>
   accounts.value.filter((a) =>
-    platforms.value.some(
-      (p) => p.name === a.platform && p.mode === "browser",
-    ),
+    platforms.value.some((p) => p.name === a.platform && p.mode === "browser"),
   ),
 );
 
@@ -258,9 +256,7 @@ const loginRunningCount = computed(
 );
 
 function hasSession(row: any): boolean {
-  return sessions.value.some(
-    (s) => s.account_id === row.id && s.session_path,
-  );
+  return sessions.value.some((s) => s.account_id === row.id && s.session_path);
 }
 
 function loginState(row: any): { label: string; tag: any } | null {
