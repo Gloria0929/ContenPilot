@@ -7,7 +7,15 @@ if [ "$HEADLESS" = "false" ]; then
   Xvfb :99 -screen 0 1280x800x24 &
   export DISPLAY=:99
   echo "Starting x11vnc"
-  x11vnc -display :99 -forever -nopw -listen 0.0.0.0 -xkb &
+  # Xvfb 就绪需要一小段时间：x11vnc 抢跑会因打不开 :99 退出，
+  # 用重试循环兜底，直到成功挂上 VNC 服务（否则 noVNC 永远"已断开连接"）
+  (
+    while true; do
+      x11vnc -display :99 -forever -nopw -listen 0.0.0.0 -xkb && break
+      echo "x11vnc not ready (Xvfb starting?), retry in 0.5s"
+      sleep 0.5
+    done
+  ) &
 else
   echo "HEADLESS=true — 浏览器无头运行（人工接管不可视，按需切换）"
 fi
