@@ -34,7 +34,9 @@
           />
         </svg>
         <div class="ring-text">
-          <div class="ring-num">{{ successRate === null ? "—" : successRate + "%" }}</div>
+          <div class="ring-num">
+            {{ successRate === null ? "—" : successRate + "%" }}
+          </div>
           <div class="ring-label">发布成功率</div>
         </div>
       </div>
@@ -44,7 +46,14 @@
     <section class="kpi-grid">
       <el-card v-for="k in kpis" :key="k.label" class="kpi" shadow="hover">
         <div class="kpi-icon" :class="k.tone">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.8"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
             <path :d="k.icon" />
           </svg>
         </div>
@@ -126,13 +135,13 @@
             class="task-item"
           >
             <span class="task-platform">{{ platformLabel(t.platform) }}</span>
-            <span class="task-title">{{ t.title || `文章 #${t.article_id}` }}</span>
+            <span class="task-title">{{
+              t.title || `文章 #${t.article_id}`
+            }}</span>
             <span class="task-time">{{ relTime(t.created_at) }}</span>
-            <span
-              class="task-status"
-              :class="statusTone(t.status)"
-              >{{ statusLabel[t.status] ?? t.status }}</span
-            >
+            <span class="task-status" :class="statusTone(t.status)">{{
+              statusLabel[t.status] ?? t.status
+            }}</span>
           </router-link>
         </div>
         <el-empty v-else description="暂无发布任务" :image-size="64" />
@@ -252,7 +261,7 @@ const statusSegments = computed(() =>
       label: statusLabel[s] ?? s,
       count: by(s),
       tone,
-    }))
+    })),
 );
 
 const byAgg = (s: string) =>
@@ -275,7 +284,7 @@ const recentTasks = computed(() => {
   return [...tasks.value]
     .sort(
       (a, b) =>
-        new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+        new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
     )
     .slice(0, 8)
     .map((t) => ({
@@ -347,7 +356,11 @@ onUnmounted(() => {
   border: 1px solid var(--el-border-color-lighter);
   border-radius: 12px;
   background:
-    radial-gradient(420px 200px at 92% -40%, rgba(47, 169, 140, 0.1), transparent),
+    radial-gradient(
+      420px 200px at 92% -40%,
+      rgba(47, 169, 140, 0.1),
+      transparent
+    ),
     linear-gradient(135deg, #f2faf8 0%, #ffffff 58%);
   box-shadow: var(--el-box-shadow-lighter);
 }
@@ -561,11 +574,21 @@ onUnmounted(() => {
   min-width: 4px;
   transition: flex 0.4s ease;
 }
-.stack-seg.ok { background: var(--el-color-success); }
-.stack-seg.bad { background: var(--el-color-danger); }
-.stack-seg.wait { background: var(--el-color-warning); }
-.stack-seg.primary { background: var(--el-color-primary); }
-.stack-seg.neutral { background: var(--el-color-info-light-5); }
+.stack-seg.ok {
+  background: var(--el-color-success);
+}
+.stack-seg.bad {
+  background: var(--el-color-danger);
+}
+.stack-seg.wait {
+  background: var(--el-color-warning);
+}
+.stack-seg.primary {
+  background: var(--el-color-primary);
+}
+.stack-seg.neutral {
+  background: var(--el-color-info-light-5);
+}
 
 .legend {
   margin-top: 16px;
@@ -593,11 +616,21 @@ onUnmounted(() => {
   height: 8px;
   border-radius: 50%;
 }
-.dot.ok { background: var(--el-color-success); }
-.dot.bad { background: var(--el-color-danger); }
-.dot.wait { background: var(--el-color-warning); }
-.dot.primary { background: var(--el-color-primary); }
-.dot.neutral { background: var(--el-color-info-light-5); }
+.dot.ok {
+  background: var(--el-color-success);
+}
+.dot.bad {
+  background: var(--el-color-danger);
+}
+.dot.wait {
+  background: var(--el-color-warning);
+}
+.dot.primary {
+  background: var(--el-color-primary);
+}
+.dot.neutral {
+  background: var(--el-color-info-light-5);
+}
 
 /* ---- 文章发布进度 ---- */
 .agg-row + .agg-row {
@@ -632,10 +665,18 @@ onUnmounted(() => {
   border-radius: 4px;
   transition: width 0.5s ease;
 }
-.agg-fill.ok { background: var(--el-color-success); }
-.agg-fill.bad { background: var(--el-color-danger); }
-.agg-fill.wait { background: var(--el-color-warning); }
-.agg-fill.neutral { background: var(--el-color-info-light-5); }
+.agg-fill.ok {
+  background: var(--el-color-success);
+}
+.agg-fill.bad {
+  background: var(--el-color-danger);
+}
+.agg-fill.wait {
+  background: var(--el-color-warning);
+}
+.agg-fill.neutral {
+  background: var(--el-color-info-light-5);
+}
 
 /* ---- 最近任务 ---- */
 .task-item {
