@@ -32,7 +32,7 @@
         通过配置文件读取密钥调用）。Secret Key 仅在生成时显示一次，请妥善保存。
       </div>
       <el-table :data="apiKeys" row-key="id">
-        <el-table-column prop="id" label="ID" min-width="60" />
+        <el-table-column type="index" label="ID" min-width="60" />
         <el-table-column prop="name" label="名称" show-overflow-tooltip />
         <el-table-column label="Access Key" min-width="160">
           <template #default="scope">

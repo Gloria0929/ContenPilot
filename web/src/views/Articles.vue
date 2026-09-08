@@ -48,7 +48,7 @@
       <el-button type="primary" @click="openCreate">新建文章</el-button>
     </div>
     <el-table :data="articles" row-key="id">
-      <el-table-column prop="id" label="ID" min-width="56" />
+      <el-table-column type="index" label="ID" min-width="56" />
       <el-table-column prop="title" label="标题" show-overflow-tooltip />
       <el-table-column label="状态" min-width="90">
         <template #default="scope">
@@ -413,9 +413,9 @@ onMounted(load);
 </script>
 
 <style scoped>
-/* 编辑/新建视图：占满内容区高度，编辑器自适应剩余空间 */
+/* 编辑/新建视图：占满内容区高度与宽度，编辑器自适应剩余空间 */
 .article-edit {
-  max-width: 1100px;
+  width: 100%;
   height: 100%;
   display: flex;
   flex-direction: column;

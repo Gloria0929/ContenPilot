@@ -8,7 +8,7 @@
         </div>
       </template>
       <el-table :data="platforms">
-        <el-table-column prop="id" label="ID" min-width="56" />
+        <el-table-column type="index" label="ID" min-width="56" />
         <el-table-column label="平台" min-width="160">
           <template #default="scope">{{
             platformLabel(scope.row.name)
@@ -16,7 +16,7 @@
         </el-table-column>
         <el-table-column label="发布方式">
           <template #default="scope">
-            <el-tag :type="scope.row.mode === 'api' ? 'info' : undefined">
+            <el-tag>
               {{ modeLabel[scope.row.mode] ?? scope.row.mode }}
             </el-tag>
           </template>
@@ -45,7 +45,7 @@
         </div>
       </template>
       <el-table :data="sessions">
-        <el-table-column prop="id" label="ID" min-width="56" />
+        <el-table-column type="index" label="ID" min-width="56" />
         <el-table-column label="账号" min-width="180">
           <template #default="scope">{{ accountLabel(scope.row) }}</template>
         </el-table-column>

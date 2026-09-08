@@ -341,7 +341,7 @@ class JuejinScript(BrowserScript):
             success=False,
             unconfirmed=True,
             error_code="publish_unconfirmed",
-            error_message="点击发布后未检测到跳转或成功提示，无法确认是否发布成功（§26）",
+            error_message="点击发布后未检测到跳转或成功提示，无法确认是否发布成功",
         )
 
     async def _ensure_summary(self, page, version) -> None:

@@ -4,7 +4,7 @@
       <el-button type="primary" @click="openAdd">添加账号</el-button>
     </div>
     <el-table :data="accounts" row-key="id">
-      <el-table-column prop="id" label="ID" min-width="60" />
+      <el-table-column type="index" label="ID" min-width="60" />
       <el-table-column prop="key" label="标识" show-overflow-tooltip />
       <el-table-column label="平台" min-width="140">
         <template #default="scope">

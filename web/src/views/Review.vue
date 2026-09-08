@@ -1,7 +1,7 @@
 <template>
   <div class="review">
     <el-table :data="reviews" :row-key="(row: any) => row.id">
-      <el-table-column prop="id" label="ID" min-width="60" />
+      <el-table-column type="index" label="ID" min-width="60" />
       <el-table-column label="文章" min-width="260" show-overflow-tooltip>
         <template #default="scope"
           >#{{ scope.row.article_id }}
