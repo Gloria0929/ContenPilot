@@ -8,7 +8,11 @@
           {{ scope.row.article_title ?? "" }}</template
         >
       </el-table-column>
-      <el-table-column prop="platform" label="平台" min-width="100" />
+      <el-table-column label="平台" min-width="130">
+        <template #default="scope">{{
+          platformLabel(scope.row.platform)
+        }}</template>
+      </el-table-column>
       <el-table-column label="版本" min-width="80">
         <template #default="scope">
           <span class="ver">
@@ -122,6 +126,7 @@ import {
   ElMessage,
 } from "element-plus";
 import api from "../api";
+import { platformLabel } from "../platforms";
 
 const reviews = ref<any[]>([]);
 

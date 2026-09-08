@@ -8,7 +8,7 @@
       <el-table-column prop="key" label="标识" show-overflow-tooltip />
       <el-table-column label="平台" min-width="140">
         <template #default="scope">
-          <el-tag size="small">{{ scope.row.platform }}</el-tag>
+          <el-tag size="small">{{ platformLabel(scope.row.platform) }}</el-tag>
         </template>
       </el-table-column>
       <el-table-column prop="name" label="名称" show-overflow-tooltip />
@@ -136,6 +136,7 @@ import {
   ElMessage,
 } from "element-plus";
 import api from "../api";
+import { platformLabel } from "../platforms";
 
 const accounts = ref<any[]>([]);
 const platformsList = ref<any[]>([]);
@@ -155,7 +156,7 @@ const form = ref({
 
 const platformOptions = computed(() =>
   platformsList.value.map((p) => ({
-    label: `${p.name}（${p.mode === "api" ? "官方 API" : "浏览器自动化"}）`,
+    label: `${platformLabel(p.name)}（${p.mode === "api" ? "官方 API" : "浏览器自动化"}）`,
     value: p.name,
   })),
 );

@@ -5,7 +5,11 @@
       <el-table-column label="文章" min-width="70">
         <template #default="scope">#{{ scope.row.article_id }}</template>
       </el-table-column>
-      <el-table-column prop="platform" label="平台" min-width="100" />
+      <el-table-column label="平台" min-width="130">
+        <template #default="scope">{{
+          platformLabel(scope.row.platform)
+        }}</template>
+      </el-table-column>
       <el-table-column label="审核" min-width="92">
         <template #default="scope">{{
           reviewLabel(scope.row.review_policy)
@@ -114,6 +118,7 @@ import {
   ElMessage,
 } from "element-plus";
 import api from "../api";
+import { platformLabel } from "../platforms";
 
 const tasks = ref<any[]>([]);
 

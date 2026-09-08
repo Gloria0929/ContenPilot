@@ -24,6 +24,16 @@ class LoginError(Exception):
     """浏览器登录流程失败。"""
 
 
+def _platform_zh(platform: str) -> str:
+    """平台英文标识 → 中文名（日志显示用）。"""
+    names = {
+        "cnblogs": "博客园", "juejin": "掘金", "csdn": "CSDN",
+        "segmentfault": "思否", "freebuf": "FreeBuf", "baijiahao": "百家号",
+        "qiehao": "企鹅号", "51cto": "51CTO", "tencent_cloud": "腾讯云开发者社区",
+    }
+    return names.get(platform, platform)
+
+
 def _ts() -> str:
     return datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
 
@@ -175,7 +185,11 @@ async def run_browser_publish(
     """
     from .scripts import get_script
 
-    _blog("browser_started", task_id, message=f"platform={platform} mode={mode}")
+    mode_zh = "发布" if mode == "publish" else "存草稿"
+    _blog(
+        "browser_started", task_id,
+        message=f"平台：{_platform_zh(platform)}，模式：{mode_zh}",
+    )
 
     script = get_script(platform)
     if script is None:
@@ -194,7 +208,7 @@ async def run_browser_publish(
 
     state_path = storage_state_path(platform, account.key)
     if not state_path.exists():
-        _blog("login_checked", task_id, level="warning", message="no storage_state")
+        _blog("login_checked", task_id, level="warning", message="未找到登录态文件，请先登录该平台账号")
         return PublishResult(
             success=False,
             needs_auth=True,
@@ -212,13 +226,16 @@ async def run_browser_publish(
         await worker.start_tracing()
         page = await ctx.new_page()
 
-        _blog("page_opened", task_id, message=script.creator_url)
+        _blog("page_opened", task_id, message=f"已打开发布页：{script.creator_url}")
         await page.goto(script.creator_url, wait_until="domcontentloaded", timeout=60000)
         await page.wait_for_timeout(2500)  # SPA 渲染缓冲
 
         # 登录检查（§24）：失效 → waiting_auth
         logged_in = await script.is_logged_in(page)
-        _blog("login_checked", task_id, message=f"logged_in={logged_in}")
+        _blog(
+            "login_checked", task_id,
+            message=f"登录状态：{'已登录' if logged_in else '未登录'}",
+        )
         if not logged_in:
             shot = await _screenshot(page, f"{diag}_login_expired")
             result = PublishResult(
@@ -255,7 +272,10 @@ async def run_browser_publish(
         _blog(
             "submit_clicked", task_id,
             level="info" if result.success else "warning",
-            message=f"success={result.success} code={result.error_code or 'ok'}",
+            message=(
+                "提交成功" if result.success
+                else f"提交失败：{result.error_message or result.error_code or '未知原因'}"
+            ),
         )
         if not result.success:
             await _screenshot(page, f"{diag}_failed_{_safe_name(result.error_code or 'unknown')}")

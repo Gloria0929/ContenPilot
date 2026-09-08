@@ -140,7 +140,7 @@
       </p>
       <div v-loading="resolving" class="pol-list">
         <div v-for="r in resolvedRows" :key="r.platform" class="pol-row">
-          <span class="pol-platform">{{ r.platform }}</span>
+          <span class="pol-platform">{{ platformLabel(r.platform) }}</span>
           <span class="pol-cell">
             审核：<b
               :class="
@@ -184,6 +184,7 @@ import { ArrowLeft } from "@element-plus/icons-vue";
 // 与主题一致的经典配色（编辑器自带暗色切换不需要）
 import "md-editor-v3/lib/style.css";
 import api from "../api";
+import { platformLabel } from "../platforms";
 
 const articles = ref<any[]>([]);
 const showForm = ref(false);

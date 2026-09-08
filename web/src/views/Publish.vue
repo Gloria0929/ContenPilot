@@ -35,7 +35,7 @@
         <el-form-item v-if="articleId && platforms.length" label="账号">
           <div class="account-grid">
             <div v-for="p in platforms" :key="p" class="account-row">
-              <span class="account-platform">{{ p }}</span>
+              <span class="account-platform">{{ platformLabel(p) }}</span>
               <el-select
                 class="account-select"
                 :model-value="accountIds[p] ?? null"
@@ -120,7 +120,11 @@
         <el-table-column label="任务" min-width="60">
           <template #default="scope">#{{ scope.row.id }}</template>
         </el-table-column>
-        <el-table-column prop="platform" label="平台" min-width="110" />
+        <el-table-column label="平台" min-width="130">
+          <template #default="scope">{{
+            platformLabel(scope.row.platform)
+          }}</template>
+        </el-table-column>
         <el-table-column label="状态">
           <template #default="scope">
             <el-tag
@@ -166,6 +170,7 @@ import {
   ElMessage,
 } from "element-plus";
 import api from "../api";
+import { platformLabel } from "../platforms";
 
 const router = useRouter();
 
@@ -194,7 +199,7 @@ const articleOptions = computed(() =>
 );
 const platformOptions = computed(() =>
   platformsList.value.map((p) => ({
-    label: `${p.name}（${p.mode === "api" ? "官方 API" : "浏览器自动化"}）`,
+    label: `${platformLabel(p.name)}（${p.mode === "api" ? "官方 API" : "浏览器自动化"}）`,
     value: p.name,
   })),
 );

@@ -121,7 +121,7 @@ class Worker:
                 session.commit()
                 logs.log(
                     "waiting_review", task.id, level="warning",
-                    message="review version mismatch, back to waiting_review",
+                    message="内容已更新，需重新审核后发布",
                 )
                 emitter.task_status(task.id, TaskStatus.waiting_review.value)
                 return
@@ -130,7 +130,7 @@ class Worker:
             task.error_message = reason
             task.finished_at = _utcnow()
             session.commit()
-            logs.log("publish_failed", task.id, level="error", message=reason)
+            logs.log("publish_failed", task.id, level="error", message=f"发布失败：{reason}")
             emitter.task_status(task.id, TaskStatus.blocked.value)
             return
 
@@ -178,7 +178,7 @@ class Worker:
             task.error_message = str(exc)
             task.finished_at = _utcnow()
             session.commit()
-            logs.log("publish_failed", task.id, level="error", message=str(exc))
+            logs.log("publish_failed", task.id, level="error", message=f"发布异常：{exc}")
             emitter.task_status(task.id, TaskStatus.failed.value)
             self._release_lock(session, accounts, task)
 
@@ -195,7 +195,7 @@ class Worker:
             task.remote_url = result.remote_url
             task.finished_at = _utcnow()
             session.commit()
-            logs.log("publish_success", task.id, message=task.remote_url or "")
+            logs.log("publish_success", task.id, message=f"发布链接：{task.remote_url}" if task.remote_url else "发布成功")
             if task.account_id:
                 accounts.mark_published(accounts.get(task.account_id))
             emitter.task_status(task.id, TaskStatus.success.value)
@@ -205,14 +205,14 @@ class Worker:
             task.status = TaskStatus.waiting_auth.value
             task.timeout_at = _utcnow() + timedelta(seconds=settings.waiting_auth_timeout)
             session.commit()
-            logs.log("waiting_auth", task.id, level="warning")
+            logs.log("waiting_auth", task.id, level="warning", message="登录态缺失或已失效，等待重新授权")
             emitter.task_status(task.id, TaskStatus.waiting_auth.value)
         elif result.needs_manual:
             # waiting_manual 持锁等待人工接管，超时由 process_timeouts 释放（§21/§50）
             task.status = TaskStatus.waiting_manual.value
             task.timeout_at = _utcnow() + timedelta(seconds=settings.waiting_manual_timeout)
             session.commit()
-            logs.log("waiting_manual", task.id, level="warning", message=result.error_message or "")
+            logs.log("waiting_manual", task.id, level="warning", message=result.error_message or "需要人工接管处理")
             if task.account_id:
                 accounts.mark_blocked(accounts.get(task.account_id))
             emitter.task_status(task.id, TaskStatus.waiting_manual.value)
@@ -232,7 +232,7 @@ class Worker:
             if task.attempt < task.max_attempts:
                 task.status = TaskStatus.queued.value
                 session.commit()
-                logs.log("task_retry", task.id, level="warning", message=result.error_message or "")
+                logs.log("task_retry", task.id, level="warning", message=f"发布失败将自动重试：{result.error_message or '未知原因'}")
                 emitter.task_status(task.id, TaskStatus.queued.value)
             else:
                 task.status = TaskStatus.failed.value
@@ -240,7 +240,7 @@ class Worker:
                 task.error_message = result.error_message
                 task.finished_at = _utcnow()
                 session.commit()
-                logs.log("publish_failed", task.id, level="error", message=result.error_message or "")
+                logs.log("publish_failed", task.id, level="error", message=f"发布失败：{result.error_message or '未知原因'}")
                 emitter.task_status(task.id, TaskStatus.failed.value)
             self._release_lock(session, accounts, task)
 

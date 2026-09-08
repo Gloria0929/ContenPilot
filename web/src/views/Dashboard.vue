@@ -125,7 +125,7 @@
             to="/tasks"
             class="task-item"
           >
-            <span class="task-platform">{{ t.platform }}</span>
+            <span class="task-platform">{{ platformLabel(t.platform) }}</span>
             <span class="task-title">{{ t.title || `文章 #${t.article_id}` }}</span>
             <span class="task-time">{{ relTime(t.created_at) }}</span>
             <span
@@ -145,6 +145,7 @@
 import { ref, computed, onMounted, onUnmounted } from "vue";
 import { ElCard, ElButton, ElEmpty } from "element-plus";
 import api from "../api";
+import { platformLabel } from "../platforms";
 
 type Stat = { label: string; count: number; tone?: string };
 

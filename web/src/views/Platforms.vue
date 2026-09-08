@@ -9,7 +9,11 @@
       </template>
       <el-table :data="platforms">
         <el-table-column prop="id" label="ID" min-width="56" />
-        <el-table-column prop="name" label="平台" min-width="160" />
+        <el-table-column label="平台" min-width="160">
+          <template #default="scope">{{
+            platformLabel(scope.row.name)
+          }}</template>
+        </el-table-column>
         <el-table-column label="发布方式">
           <template #default="scope">
             <el-tag :type="scope.row.mode === 'api' ? 'info' : undefined">
@@ -45,7 +49,11 @@
         <el-table-column label="账号" min-width="180">
           <template #default="scope">{{ accountLabel(scope.row) }}</template>
         </el-table-column>
-        <el-table-column prop="platform" label="平台" min-width="120" />
+        <el-table-column label="平台" min-width="130">
+          <template #default="scope">{{
+            platformLabel(scope.row.platform)
+          }}</template>
+        </el-table-column>
         <el-table-column label="状态" min-width="100">
           <template #default="scope">
             <el-tag :type="scope.row.status === 'busy' ? 'warning' : 'success'">
@@ -120,6 +128,7 @@ import {
   ElLink,
 } from "element-plus";
 import api from "../api";
+import { platformLabel } from "../platforms";
 
 const platforms = ref<any[]>([]);
 const sessions = ref<any[]>([]);

@@ -248,7 +248,10 @@ class PublishService:
         if review_policy == ReviewMode.always.value:
             self.reviews.create_review(task.id, version.id, reviewer=requester)
 
-        self.logs.log("task_created", task.id, message=f"platform={platform_name}")
+        self.logs.log(
+            "task_created", task.id,
+            message=f"发布任务已创建（平台：{platform_name}）",
+        )
         emitter.task_created(task.id, platform_name)
 
         # publish=automatic 且 review != always → 直接进入 queued

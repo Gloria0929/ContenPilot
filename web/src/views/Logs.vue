@@ -65,6 +65,7 @@ import {
   ElTag,
 } from "element-plus";
 import api from "../api";
+import { platformLabel } from "../platforms";
 
 const logs = ref<any[]>([]);
 const loading = ref(false);
@@ -109,13 +110,49 @@ const eventLabel: Record<string, string> = {
   policy_override: "策略覆盖（审计）",
 };
 
-// message 美化：原样多为 "platform=xxx" / 文章链接
+// 旧格式错误码 → 中文
+const codeLabel: Record<string, string> = {
+  ok: "成功",
+  publish_unconfirmed: "已点击发布但无法确认结果，已锁定防重复发布",
+  login_required: "未登录",
+  login_expired: "登录态已失效",
+  manual_intervention: "需要人工处理（验证码/风控）",
+  script_failed: "页面脚本执行失败",
+  browser_error: "浏览器执行异常",
+  account_required: "未绑定账号",
+  no_browser_script: "平台缺少浏览器脚本",
+  pre_publish_check_failed: "发布前置校验未通过",
+  review_version_mismatch: "内容已更新，需重新审核",
+  timeout: "任务超时",
+  exception: "执行异常",
+};
+
+// message 美化：新日志已是中文；兼容旧格式 "platform=xxx" / 裸 URL / 英文 code
 function fmtMessage(row: any): string {
   const m = row.message || "";
-  const pm = m.match(/^platform=([\w-]+)$/);
-  if (pm) return `平台：${pm[1]}`;
+  if (!m) return "-";
+  const pm = m.match(/^platform=([\w-]+)(?: mode=(\w+))?$/);
+  if (pm) {
+    const p = platformLabel(pm[1]);
+    return pm[2]
+      ? `平台：${p}，模式：${pm[2] === "publish" ? "发布" : "存草稿"}`
+      : `平台：${p}`;
+  }
   if (/^https?:\/\//.test(m)) return `发布链接：${m}`;
-  return m || "-";
+  // 旧格式 logged_in=True / False
+  const li = m.match(/^logged_in=(True|False)$/);
+  if (li) return `登录状态：${li[1] === "True" ? "已登录" : "未登录"}`;
+  // 旧格式 success=True/False code=xxx
+  const sc = m.match(/^success=(True|False)(?: code=([\w.]+))?$/);
+  if (sc) {
+    const ok = sc[1] === "True";
+    if (ok) return "提交成功";
+    const zh = codeLabel[sc[2] || ""] || sc[2] || "未知原因";
+    return `提交失败：${zh}`;
+  }
+  // 兜底：纯错误码字符串
+  if (codeLabel[m]) return codeLabel[m];
+  return m;
 }
 
 const fmtTime = (t: string) => (t ? t.slice(0, 19).replace("T", " ") : "");

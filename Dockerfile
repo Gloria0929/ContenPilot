@@ -17,6 +17,7 @@ ENV PYTHONUNBUFFERED=1 \
     PIP_DEFAULT_TIMEOUT=120 \
     PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple \
     PLAYWRIGHT_DOWNLOAD_HOST=https://cdn.npmmirror.com/binaries/playwright \
+    DEBIAN_FRONTEND=noninteractive \
     TZ=Asia/Shanghai
 
 # 系统依赖：Xvfb（虚拟显示）+ 浏览器运行库 + 中文字体
