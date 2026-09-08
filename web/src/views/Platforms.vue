@@ -171,13 +171,17 @@
         <code>HEADLESS=false</code> 部署；内嵌画面不可用时可点
         「新窗口打开」直连 noVNC（端口 6080）。
       </p>
-      <div class="vnc-box">
+      <div ref="vncBoxRef" class="vnc-box">
+        <!-- 懒加载：滚动到可视区域才挂载 iframe。noVNC 加载后会 focus
+             画布，若首屏就挂载会把页面自动拽到底部 -->
         <iframe
+          v-if="vncVisible"
           :src="vncFrame"
           title="noVNC"
           class="vnc-frame"
           allow="fullscreen"
         ></iframe>
+        <div v-else class="vnc-placeholder">滚动到此处时加载 noVNC 画面</div>
       </div>
     </el-card>
   </div>
@@ -342,14 +346,36 @@ async function load() {
 }
 
 let es: EventSource | null = null;
+// noVNC iframe 懒加载：进入可视区域才挂载（加载时 focus 会把页面拽到底部）
+const vncBoxRef = ref<HTMLElement | null>(null);
+const vncVisible = ref(false);
+let vncObserver: IntersectionObserver | null = null;
+
 onMounted(() => {
   load();
   es = new EventSource("/api/events");
   es.onmessage = () => load();
+  if (vncBoxRef.value && "IntersectionObserver" in window) {
+    vncObserver = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((e) => e.isIntersecting)) {
+          vncVisible.value = true;
+          vncObserver?.disconnect();
+          vncObserver = null;
+        }
+      },
+      { rootMargin: "200px" },
+    );
+    vncObserver.observe(vncBoxRef.value);
+  } else {
+    vncVisible.value = true; // 环境不支持时直接挂载
+  }
 });
 onUnmounted(() => {
   es?.close();
   stopPolling();
+  vncObserver?.disconnect();
+  vncObserver = null;
 });
 </script>
 
@@ -394,5 +420,14 @@ onUnmounted(() => {
   max-height: 80vh;
   border: 0;
   display: block;
+}
+.vnc-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  aspect-ratio: 8 / 5;
+  max-height: 80vh;
+  color: rgba(148, 163, 184, 0.8);
+  font-size: 13px;
 }
 </style>
