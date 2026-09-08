@@ -127,9 +127,9 @@
           <template #default="scope">
             <el-tag
               v-if="loginState(scope.row)"
-              :type="loginState(scope.row).tag"
+              :type="loginState(scope.row)?.tag"
             >
-              {{ loginState(scope.row).label }}
+              {{ loginState(scope.row)?.label }}
             </el-tag>
             <span v-else>-</span>
           </template>
