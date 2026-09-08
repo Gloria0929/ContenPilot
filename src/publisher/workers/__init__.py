@@ -207,6 +207,21 @@ class Worker:
             session.commit()
             logs.log("waiting_auth", task.id, level="warning", message="登录态缺失或已失效，等待重新授权")
             emitter.task_status(task.id, TaskStatus.waiting_auth.value)
+            # 自动打开浏览器登录窗口（容器内渲染在 Xvfb，用户经 noVNC 完成登录；
+            # 登录成功后 login_manager 自动把 waiting_auth 任务恢复为 queued）
+            if task.account_id:
+                account = session.get(Account, task.account_id)
+                if account:
+                    try:
+                        from ..browser import login_manager
+
+                        login_manager.start_login(task.platform, account.key)
+                        logs.log(
+                            "waiting_auth", task.id,
+                            message="已自动打开浏览器登录窗口，请通过 noVNC（平台与会话页）完成登录",
+                        )
+                    except Exception:  # noqa: BLE001 —— 自动登录触发失败不影响任务等待态
+                        logger.exception("auto login trigger failed")
         elif result.needs_manual:
             # waiting_manual 持锁等待人工接管，超时由 process_timeouts 释放（§21/§50）
             task.status = TaskStatus.waiting_manual.value

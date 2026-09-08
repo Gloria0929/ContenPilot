@@ -24,8 +24,7 @@
         <el-table-column label="账号数" min-width="90">
           <template #default="scope">
             {{
-              accounts.filter((a) => a.platform === scope.row.name).length ||
-              "-"
+              accounts.filter((a) => a.platform === scope.row.name).length || 0
             }}
           </template>
         </el-table-column>
@@ -92,6 +91,73 @@
     <el-card shadow="never">
       <template #header>
         <div class="card-header">
+          <span>账号登录</span>
+          <span class="card-extra">
+            <el-tag v-if="loginRunningCount" type="warning">
+              {{ loginRunningCount }} 个登录中
+            </el-tag>
+            <el-button text :loading="loading" @click="load"> 刷新 </el-button>
+          </span>
+        </div>
+      </template>
+      <p class="vnc-hint">
+        点击「打开登录」会在服务器打开该平台的浏览器登录页（显示在下方
+        noVNC 画面中），完成登录后自动保存登录态；若有等待授权的任务也会自动恢复。
+      </p>
+      <el-table :data="browserAccounts">
+        <el-table-column type="index" label="ID" min-width="56" />
+        <el-table-column label="账号" min-width="180" show-overflow-tooltip>
+          <template #default="scope">
+            {{ scope.row.name || scope.row.key }}
+          </template>
+        </el-table-column>
+        <el-table-column label="平台" min-width="150">
+          <template #default="scope">{{
+            platformLabel(scope.row.platform)
+          }}</template>
+        </el-table-column>
+        <el-table-column label="登录态" min-width="90">
+          <template #default="scope">
+            <el-tag :type="hasSession(scope.row) ? 'success' : undefined">
+              {{ hasSession(scope.row) ? "已保存" : "未登录" }}
+            </el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column label="登录状态" min-width="160">
+          <template #default="scope">
+            <el-tag
+              v-if="loginState(scope.row)"
+              :type="loginState(scope.row).tag"
+            >
+              {{ loginState(scope.row).label }}
+            </el-tag>
+            <span v-else>-</span>
+          </template>
+        </el-table-column>
+        <el-table-column label="操作" min-width="110">
+          <template #default="scope">
+            <el-button
+              size="small"
+              type="primary"
+              :loading="startingKey === scope.row.key"
+              @click="startLogin(scope.row)"
+            >
+              打开登录
+            </el-button>
+          </template>
+        </el-table-column>
+      </el-table>
+      <el-empty
+        v-if="!browserAccounts.length"
+        description="暂无浏览器平台的账号，请先在账号管理中添加"
+        :image-size="60"
+        style="padding: 24px 0"
+      />
+    </el-card>
+
+    <el-card shadow="never">
+      <template #header>
+        <div class="card-header">
           <span>可视化人工接管（noVNC）</span>
           <el-link :href="vncExternal" target="_blank" rel="noopener">
             新窗口打开
@@ -99,15 +165,15 @@
         </div>
       </template>
       <p class="vnc-hint">
-        任务进入「等待授权 /
-        等待人工」时，在下方浏览器画面中完成扫码、验证码等操作，
-        完成后回到任务列表点「恢复」。需要 Docker 以
+        在「账号登录」点「打开登录」或在任务等待授权 / 人工时，
+        在下方浏览器画面中完成登录、扫码、验证码等操作，
+        登录完成后等待授权的任务会自动恢复。需要 Docker 以
         <code>HEADLESS=false</code> 部署；内嵌画面不可用时可点
         「新窗口打开」直连 noVNC（端口 6080）。
       </p>
       <div class="vnc-box">
         <iframe
-          src="/vnc/vnc.html?autoconnect=1&resize=scale"
+          :src="vncFrame"
           title="noVNC"
           class="vnc-frame"
         ></iframe>
@@ -126,6 +192,7 @@ import {
   ElTableColumn,
   ElEmpty,
   ElLink,
+  ElMessage,
 } from "element-plus";
 import api from "../api";
 import { platformLabel } from "../platforms";
@@ -134,6 +201,10 @@ const platforms = ref<any[]>([]);
 const sessions = ref<any[]>([]);
 const accounts = ref<any[]>([]);
 const loading = ref(false);
+// 后台登录状态：key = "platform:account_key" → {status, error}
+const loginStates = ref<Record<string, any>>({});
+const startingKey = ref<string | null>(null);
+let loginTimer: ReturnType<typeof setInterval> | null = null;
 
 const modeLabel: Record<string, string> = {
   api: "官方 API",
@@ -160,11 +231,102 @@ const busyCount = computed(
   () => sessions.value.filter((s) => s.status === "busy").length,
 );
 
-// 直连 noVNC（Docker 部署下 /vnc 代理不可用时的兜底入口）
+// 直连 noVNC（跨端口 iframe 展示与操作均正常，websockify 直连 :6080）
 const vncExternal = computed(
   () =>
     `${window.location.protocol}//${window.location.hostname}:6080/vnc.html`,
 );
+const vncFrame = computed(
+  () =>
+    `${window.location.protocol}//${window.location.hostname}:6080/vnc.html?autoconnect=1&resize=scale`,
+);
+
+// 浏览器平台的账号（登录入口只对 browser 模式有意义）
+const browserAccounts = computed(() =>
+  accounts.value.filter((a) =>
+    platforms.value.some(
+      (p) => p.name === a.platform && p.mode === "browser",
+    ),
+  ),
+);
+
+const loginRunningCount = computed(
+  () =>
+    Object.values(loginStates.value).filter((s: any) => s?.status === "running")
+      .length,
+);
+
+function hasSession(row: any): boolean {
+  return sessions.value.some(
+    (s) => s.account_id === row.id && s.session_path,
+  );
+}
+
+function loginState(row: any): { label: string; tag: any } | null {
+  const st = loginStates.value[`${row.platform}:${row.key}`];
+  if (!st) return null;
+  if (st.status === "running")
+    return { label: "登录中，请在 noVNC 完成", tag: "warning" };
+  if (st.status === "success") return { label: "登录成功", tag: "success" };
+  return { label: `登录失败：${st.error || "未知原因"}`, tag: "danger" };
+}
+
+async function startLogin(row: any) {
+  startingKey.value = row.key;
+  try {
+    const r = await api.post("/browser/login", {
+      platform: row.platform,
+      account_id: row.id,
+    });
+    loginStates.value[`${row.platform}:${row.key}`] = {
+      status: r.data.status,
+    };
+    ElMessage.success("已打开浏览器登录窗口，请在下方 noVNC 画面完成登录");
+    startPolling();
+  } catch (e: any) {
+    ElMessage.error(e?.response?.data?.detail || "启动登录失败");
+  } finally {
+    startingKey.value = null;
+  }
+}
+
+// 轮询进行中的登录状态，全部结束后停止
+function startPolling() {
+  if (loginTimer) return;
+  loginTimer = setInterval(async () => {
+    const keys = Object.entries(loginStates.value).filter(
+      ([, s]) => (s as any)?.status === "running",
+    );
+    if (!keys.length) {
+      stopPolling();
+      return;
+    }
+    for (const [k] of keys) {
+      const [platform, key] = k.split(":");
+      try {
+        const r = await api.get("/browser/login/status", {
+          params: { platform, account_key: key },
+        });
+        if (r.data && r.data.status !== "running") {
+          loginStates.value[k] = r.data;
+          if (r.data.status === "success") {
+            ElMessage.success(`${platform} 登录完成`);
+            await load();
+          }
+        }
+      } catch {
+        // 单次查询失败忽略，下轮重试
+      }
+    }
+  }, 2000);
+}
+
+function stopPolling() {
+  if (loginTimer) {
+    clearInterval(loginTimer);
+    loginTimer = null;
+  }
+}
 
 async function load() {
   loading.value = true;
@@ -188,7 +350,10 @@ onMounted(() => {
   es = new EventSource("/api/events");
   es.onmessage = () => load();
 });
-onUnmounted(() => es?.close());
+onUnmounted(() => {
+  es?.close();
+  stopPolling();
+});
 </script>
 
 <style scoped>

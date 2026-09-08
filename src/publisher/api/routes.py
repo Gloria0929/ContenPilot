@@ -5,6 +5,7 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse, StreamingResponse
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from ..auth import AuthService
@@ -589,6 +590,61 @@ def list_browser_sessions(db: Session = Depends(get_db), auth=Depends(get_curren
     from ..models import BrowserSession
 
     return db.scalars(select(BrowserSession).order_by(BrowserSession.id)).all()
+
+
+class BrowserLoginIn(BaseModel):
+    platform: str
+    account_id: int | None = None
+
+
+@router.post("/browser/login")
+def start_browser_login(
+    payload: BrowserLoginIn, db: Session = Depends(get_db), auth=Depends(get_current_auth)
+):
+    """后台打开可见浏览器等待登录（容器内经 noVNC :6080 操作）。
+
+    账号解析与 CLI 一致：指定 account_id 直查；否则该平台唯一账号；
+    无账号时自动创建 {platform}_default。
+    """
+    from ..browser import login_manager
+    from ..models import Account
+    from ..services.account_service import AccountService
+
+    svc = AccountService(db)
+    if payload.account_id:
+        acct = db.get(Account, payload.account_id)
+        if not acct or acct.platform != payload.platform:
+            raise HTTPException(404, "account not found")
+    else:
+        accounts = [a for a in svc.list() if a.platform == payload.platform]
+        if len(accounts) == 1:
+            acct = accounts[0]
+        elif not accounts:
+            acct = svc.create(f"{payload.platform}_default", payload.platform, "")
+        else:
+            raise HTTPException(
+                400,
+                f"该平台有多个账号，请指定 account_id: "
+                f"{', '.join(str(a.id) for a in accounts)}",
+            )
+
+    state = login_manager.start_login(payload.platform, acct.key)
+    return {
+        "ok": True,
+        "account_id": acct.id,
+        "account_key": acct.key,
+        "status": state["status"],
+    }
+
+
+@router.get("/browser/login/status")
+def browser_login_status(
+    platform: str, account_key: str, auth=Depends(get_current_auth)
+):
+    """查询后台登录流程状态（running / success / failed / null）。"""
+    from ..browser import login_manager
+
+    return login_manager.get_status(platform, account_key)
 
 
 # ---- Settings ----
