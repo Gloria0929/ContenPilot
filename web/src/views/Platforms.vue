@@ -176,6 +176,7 @@
           :src="vncFrame"
           title="noVNC"
           class="vnc-frame"
+          allow="fullscreen"
         ></iframe>
       </div>
     </el-card>
