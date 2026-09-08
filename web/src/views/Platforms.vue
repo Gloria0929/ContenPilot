@@ -389,9 +389,12 @@ onUnmounted(() => {
   border: 1px solid rgba(148, 163, 184, 0.25);
   background: #000;
 }
+/* Xvfb 屏幕为 1280×800（8:5），iframe 按该比例撑满宽度，
+   noVNC resize=scale 会随容器等比放大远程画面；过高时限制视口高度 */
 .vnc-frame {
   width: 100%;
-  height: 480px;
+  aspect-ratio: 8 / 5;
+  max-height: 80vh;
   border: 0;
   display: block;
 }
