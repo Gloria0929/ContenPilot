@@ -200,6 +200,8 @@ Web 设置页「API 密钥」可生成密钥对，供外部程序（AI Skill、�
 }
 ```
 
+配置了该文件（或 `CONTENTPILOT_BASE_URL` / `CONTENTPILOT_ACCESS_KEY` / `CONTENTPILOT_SECRET_KEY` 环境变量）的机器上，`publisher` CLI 与 AI Skill 都会自动优先通过此 REST 接口远程操作 `base_url` 指向的服务（远程/本机均可）；未配置时 CLI 直连本机数据库。
+
 ## REST API 概览
 
 所有接口挂载在 `/api` 前缀下（除登录外均需鉴权：HttpOnly Cookie 会话 或 `Authorization: Bearer <access_key>:<secret_key>`）：
@@ -406,6 +408,8 @@ npm run build  # 产出 dist/ 并自动部署到 ~/.contentpilot/web_dist（后�
 `skill/content-publisher/` 提供给 AI Agent 使用的 Skill（SKILL.md + 参考文档 + 示例）：AI 通过 CLI/API 完成内容生产与发布调度，但不得绕过 Policy Resolver、不得读取任何凭据（token / cookie / storage_state）。
 
 Skill 的调用策略为「配置文件决定」：存在 `~/.contentpilot/api_client.json`（或设置了 `CONTENTPILOT_BASE_URL` / `CONTENTPILOT_ACCESS_KEY` / `CONTENTPILOT_SECRET_KEY` 环境变量）时以 Bearer `ak:sk` 凭证调用 REST API，`base_url` 指向哪台服务就调哪台（服务器或本机均可）；无配置文件时使用本机 `publisher` CLI（直接操作本机数据库）。完整的 CLI ↔ REST 端点映射见 `skill/content-publisher/references/api.md`。详细设计文档见 `docs/`（README.md、TECHNICAL_REQUIREMENTS_V2.2.md）。
+
+`publisher` CLI 遵循同一套路由规则：存在 `api_client.json`（或 `CONTENTPILOT_*` 环境变量，环境变量优先）时，article / publish / task / review / account / policy / auth whoami 等命令自动转发为对 `base_url` 的 REST API 调用，可直接用命令行管理远程服务器部署（`server`、`ai`、`browser login` 始终在本机执行）。无配置时 CLI 直接操作本机数据库；配置文件存在但内容不完整时会直接报错，不会静默回落到本地库。
 
 ## 测试
 

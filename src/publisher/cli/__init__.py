@@ -9,6 +9,8 @@ from rich.table import Table
 
 from ..config import settings as _settings
 from ..database import SessionLocal, init_db
+from . import remote
+from .remote import RemoteError, remote_client
 
 app = typer.Typer(help="AI Content Publisher - 内容发布系统")
 console = Console()
@@ -49,6 +51,8 @@ def _print_json(obj) -> None:
 
 
 def _to_dict(obj):
+    if isinstance(obj, dict):
+        return obj
     if hasattr(obj, "model_dump"):
         return obj.model_dump()
     if hasattr(obj, "__dict__"):
@@ -101,6 +105,11 @@ def article_create(
 ):
     from ..services.article_service import ArticleService
 
+    if (c := remote_client()) is not None:
+        remote.article_create(
+            c, title=title, content=content, summary=summary, source=source, json_=json_
+        )
+        return
     s = _session()
     try:
         a = ArticleService(s).create(title, content, summary, source=source)
@@ -113,6 +122,9 @@ def article_create(
 def article_list(json_: bool = typer.Option(False, "--json", help="以 JSON 格式输出")):
     from ..services.article_service import ArticleService
 
+    if (c := remote_client()) is not None:
+        remote.article_list(c, json_=json_)
+        return
     s = _session()
     try:
         articles = ArticleService(s).list()
@@ -137,6 +149,9 @@ def article_show(
 ):
     from ..services.article_service import ArticleService
 
+    if (c := remote_client()) is not None:
+        remote.article_show(c, article_id=article_id, json_=json_)
+        return
     s = _session()
     try:
         a = ArticleService(s).get(article_id)
@@ -169,6 +184,18 @@ def article_update(
     if status and status not in ("draft", "ready", "archived"):
         console.print(f"[red]无效的 status '{status}'，可选：draft / ready / archived[/red]")
         raise typer.Exit(1)
+
+    if (c := remote_client()) is not None:
+        remote.article_update(
+            c,
+            article_id=article_id,
+            title=title,
+            content=content,
+            summary=summary,
+            status=status,
+            json_=json_,
+        )
+        return
 
     s = _session()
     try:
@@ -248,6 +275,16 @@ def policy_resolve(
     from ..models import Platform
     from ..services.policy_service import PolicyService
 
+    if (c := remote_client()) is not None:
+        remote.policy_resolve(
+            c,
+            platform=platform,
+            account_id=account_id,
+            article_id=article_id,
+            task_id=task_id,
+            json_=json_,
+        )
+        return
     s = _session()
     try:
         platform_id = None
@@ -304,6 +341,13 @@ def policy_set(
         console.print("[red]需要 --review/--publish 至少一项，或使用 --clear[/red]")
         raise typer.Exit(1)
 
+    if (c := remote_client()) is not None:
+        remote.policy_set(
+            c, scope=scope, scope_id=scope_id, review=review,
+            publish=publish, floor=floor, clear=clear,
+        )
+        return
+
     s = _session()
     try:
         PolicyService(s).set_policy(scope, scope_id, review, publish, is_floor=floor)
@@ -329,6 +373,9 @@ app.add_typer(review_app, name="review")
 
 @review_app.command("list", help="列出所有待审核项")
 def review_list(json_: bool = typer.Option(False, "--json", help="以 JSON 格式输出")):
+    if (c := remote_client()) is not None:
+        remote.review_list(c, json_=json_)
+        return
     s = _session()
     try:
         from ..services.review_service import ReviewService
@@ -349,6 +396,9 @@ def review_approve(
 ):
     from ..services.review_service import ReviewService
 
+    if (c := remote_client()) is not None:
+        remote.review_approve(c, review_id=review_id, comment=comment)
+        return
     s = _session()
     try:
         r = ReviewService(s).approve(review_id, "cli", comment)
@@ -367,6 +417,9 @@ def review_reject(
 ):
     from ..services.review_service import ReviewService
 
+    if (c := remote_client()) is not None:
+        remote.review_reject(c, review_id=review_id, comment=comment)
+        return
     s = _session()
     try:
         r = ReviewService(s).reject(review_id, "cli", comment)
@@ -391,6 +444,13 @@ def publish(
 ):
     from ..services.account_service import AccountService
     from ..services.publish_service import PublishService
+
+    if (c := remote_client()) is not None:
+        remote.publish(
+            c, article_id=article_id, platform=platform, account=account,
+            review=review, no_review=no_review, json_=json_,
+        )
+        return
 
     if platform:
         from ..platforms.registry import available_platforms, import_platforms
@@ -475,6 +535,9 @@ def task_list(
 ):
     from ..services.publish_service import PublishService
 
+    if (c := remote_client()) is not None:
+        remote.task_list(c, status=status, json_=json_)
+        return
     s = _session()
     try:
         tasks = PublishService(s).list_tasks(status)
@@ -498,6 +561,9 @@ def task_show(
 ):
     from ..services.publish_service import PublishService
 
+    if (c := remote_client()) is not None:
+        remote.task_show(c, task_id=task_id, json_=json_)
+        return
     s = _session()
     try:
         t = PublishService(s).get_task(task_id)
@@ -515,6 +581,9 @@ def task_retry(
 ):
     from ..services.publish_service import PublishService
 
+    if (c := remote_client()) is not None:
+        remote.task_retry(c, task_id=task_id)
+        return
     s = _session()
     try:
         t = PublishService(s).retry(task_id)
@@ -532,6 +601,9 @@ def task_resume(
 ):
     from ..services.publish_service import PublishService
 
+    if (c := remote_client()) is not None:
+        remote.task_resume(c, task_id=task_id)
+        return
     s = _session()
     try:
         t = PublishService(s).resume(task_id)
@@ -549,6 +621,9 @@ def task_cancel(
 ):
     from ..services.publish_service import PublishService
 
+    if (c := remote_client()) is not None:
+        remote.task_cancel(c, task_id=task_id)
+        return
     s = _session()
     try:
         t = PublishService(s).cancel(task_id)
@@ -570,6 +645,9 @@ app.add_typer(account_app, name="account")
 def account_list(json_: bool = typer.Option(False, "--json", help="以 JSON 格式输出")):
     from ..services.account_service import AccountService
 
+    if (c := remote_client()) is not None:
+        remote.account_list(c, json_=json_)
+        return
     s = _session()
     try:
         accounts = AccountService(s).list()
@@ -593,6 +671,13 @@ def account_add(
 ):
     """添加账号。带 --token 时凭据将加密保存，用于官方 API 平台发布。"""
     from ..services.account_service import AccountService
+
+    if (c := remote_client()) is not None:
+        remote.account_add(
+            c, platform=platform, key=key, name=name,
+            username=username, token=token, blog_name=blog_name,
+        )
+        return
 
     key = key or f"{platform}_{name or (username or 'default')}"
     credentials = None
@@ -625,6 +710,9 @@ def account_disable(
     """停用账号（key 或 id）。停用后新发布任务被拦截，历史任务保留。"""
     from ..services.account_service import AccountService
 
+    if (c := remote_client()) is not None:
+        remote.account_disable(c, account=account)
+        return
     s = _session()
     try:
         svc = AccountService(s)
@@ -648,6 +736,9 @@ def account_enable(
     """启用已停用的账号（key 或 id）。"""
     from ..services.account_service import AccountService
 
+    if (c := remote_client()) is not None:
+        remote.account_enable(c, account=account)
+        return
     s = _session()
     try:
         svc = AccountService(s)
@@ -685,6 +776,13 @@ def browser_login(
     from ..browser import LoginError, run_browser_login
     from ..services.account_service import AccountService
 
+    if remote_client() is not None:
+        # 浏览器登录必须在有真实显示器的机器上执行（风控），且登录态写入本机
+        # data 目录；远程模式下需要手动把 storage_state 同步到服务器共享目录
+        console.print(
+            "[yellow]远程模式：browser login 始终在本机执行，登录态保存在本机 data 目录，"
+            "需手动同步到服务器 data 目录后服务器才能使用该登录态[/yellow]"
+        )
     s = _session()
     try:
         svc = AccountService(s)
@@ -770,6 +868,12 @@ def auth_login(
     """登录并把 API Key 持久化到本地（跨进程生效，可用于 CLI 与 REST API Bearer）。"""
     from ..auth import AuthService
 
+    if remote_client() is not None:
+        console.print(
+            "远程模式：CLI 凭证由 api_client.json 中的 API Key 提供，"
+            "密钥请在 Web 设置页「API 密钥」中管理"
+        )
+        return
     username = username or _settings.admin_username
     if password is None:
         password = typer.prompt("密码", hide_input=True)
@@ -799,6 +903,12 @@ def auth_logout():
     """撤销当前 CLI 登录态（删除 API Key 并删除本地 token 文件）。"""
     from ..auth import AuthService
 
+    if remote_client() is not None:
+        console.print(
+            "远程模式：CLI 凭证由 api_client.json 中的 API Key 提供，"
+            "如需吊销请在 Web 设置页「API 密钥」中删除，或删除本地 api_client.json"
+        )
+        return
     raw = _load_cli_token()
     if not raw:
         console.print("not logged in")
@@ -820,6 +930,9 @@ def auth_whoami():
     """显示当前 CLI 登录态（校验本地 token 对应的 API Key 是否仍有效）。"""
     from ..auth import AuthService
 
+    if (c := remote_client()) is not None:
+        remote.auth_whoami(c)
+        return
     raw = _load_cli_token()
     if not raw:
         console.print("not logged in")
@@ -842,6 +955,9 @@ def main() -> None:
         app()
     except typer.Exit:
         raise
+    except RemoteError as e:
+        console.print(f"[red]{e}[/red]")
+        sys.exit(1)
     except Exception as e:
         console.print(f"[red]错误：{e}[/red]")
         sys.exit(1)
