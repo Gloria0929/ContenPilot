@@ -50,6 +50,37 @@ def test_wrong_password_rejected(client):
     assert r.status_code == 401
 
 
+def test_video_render_maps_browser_loopback_to_compose_service(client, monkeypatch):
+    """浏览器填写 localhost 时，容器后端应使用 Compose 内部 API 地址。"""
+    from publisher.pipeline import MoneyPrinterTurboClient
+
+    requested_urls: list[str] = []
+
+    async def fake_create_video_task(self, **kwargs):
+        requested_urls.append(self.base_url)
+        return {"status": 200, "data": {"task_id": "task-123"}}
+
+    monkeypatch.setenv(
+        "MONEYPRINTERTURBO_URL", "http://moneyprinterturbo:8080"
+    )
+    monkeypatch.setattr(
+        MoneyPrinterTurboClient, "create_video_task", fake_create_video_task
+    )
+    _login(client)
+
+    response = client.post(
+        "/api/pipeline/video/render",
+        json={
+            "video_script": "测试文案",
+            "video_subject": "测试主题",
+            "money_printer_url": "http://localhost:8080",
+        },
+    )
+
+    assert response.status_code == 200
+    assert requested_urls == ["http://moneyprinterturbo:8080"]
+
+
 def test_full_publish_flow_with_floor(client):
     _login(client)
     # 创建文章

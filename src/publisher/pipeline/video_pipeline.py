@@ -15,7 +15,7 @@ from typing import Any
 
 import httpx
 
-from ..ai import ai_generate
+from ..ai import get_provider
 from ..knowledge.prompts import (
     build_short_video_script_prompt,
     build_video_cover_and_assets_prompt,
@@ -27,11 +27,22 @@ logger = logging.getLogger(__name__)
 async def generate_short_video_script(
     hotspot_summary: str,
     angle: str = "",
+    provider_name: str | None = None,
+    ollama_url: str | None = None,
+    ollama_model: str | None = None,
+    session=None,
 ) -> dict[str, Any]:
     """生成短视频口播脚本、标题、钩子及剪辑素材清单。"""
+    provider = get_provider(
+        name=provider_name,
+        base_url=ollama_url if provider_name == "ollama" else None,
+        model=ollama_model if provider_name == "ollama" else None,
+        session=session,
+    )
+
     # 1. 口播脚本
     script_prompt = build_short_video_script_prompt(hotspot_summary, angle=angle)
-    script_content = await ai_generate(script_prompt)
+    script_content = await provider.generate(script_prompt)
 
     # 2. 视频标题与钩子提炼
     hook_prompt = f"""根据以下短视频口播文案，生成 3 个极具吸引力的短视频大标题和视频前3秒的口播爆点金句：
@@ -44,7 +55,7 @@ async def generate_short_video_script(
 文案：
 {script_content}
 """
-    hook_raw = await ai_generate(hook_prompt)
+    hook_raw = await provider.generate(hook_prompt)
     titles = ["AI Agent 正在替程序员上班：研发范式的大地震"]
     hooks = []
     try:
@@ -64,7 +75,7 @@ async def generate_short_video_script(
     # 3. 封面图提示词与素材清单
     cover_and_assets = build_video_cover_and_assets_prompt(script_content, chosen_title)
     cover_prompt = cover_and_assets["cover_prompt"]
-    assets_manifest = await ai_generate(cover_and_assets["assets_prompt"])
+    assets_manifest = await provider.generate(cover_and_assets["assets_prompt"])
 
     return {
         "title": chosen_title,
@@ -83,14 +94,14 @@ class MoneyPrinterTurboClient:
     支持将口播文本直接发送至本地或容器内的 MoneyPrinterTurbo 服务，自动化合成短视频。
     """
 
-    def __init__(self, base_url: str = "http://localhost:8501"):
+    def __init__(self, base_url: str = "http://localhost:8080"):
         self.base_url = base_url.rstrip("/")
 
     async def check_health(self) -> bool:
         """检测 MoneyPrinterTurbo 服务是否就绪。"""
         try:
             async with httpx.AsyncClient(timeout=5) as client:
-                resp = await client.get(f"{self.base_url}/api/health")
+                resp = await client.get(f"{self.base_url}/ping")
                 return resp.status_code == 200
         except Exception:
             return False
@@ -111,12 +122,12 @@ class MoneyPrinterTurboClient:
         }
         try:
             async with httpx.AsyncClient(timeout=30) as client:
-                resp = await client.post(f"{self.base_url}/api/tasks", json=payload)
+                resp = await client.post(f"{self.base_url}/api/v1/videos", json=payload)
                 if resp.status_code in (200, 201):
                     return resp.json()
                 return {"error": f"API returned {resp.status_code}", "detail": resp.text}
         except Exception as e:
             return {
                 "error": "MoneyPrinterTurbo service unreachable",
-                "message": f"请确保 MoneyPrinterTurbo 服务已启动（默认端口 8501），错误详情：{str(e)}",
+                "message": f"请确保 MoneyPrinterTurbo API 已启动（默认端口 8080），错误详情：{str(e)}",
             }

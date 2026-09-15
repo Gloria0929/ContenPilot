@@ -17,7 +17,7 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from ..ai import ai_generate
+from ..ai import get_provider
 from ..knowledge.prompts import build_geo_article_prompt, build_geo_titles_prompt
 from ..models import (
     Account,
@@ -77,13 +77,23 @@ async def generate_geo_titles(
     industry_keywords: list[str] | None = None,
     brand_keywords: list[str] | None = None,
     count: int = 30,
+    provider_name: str | None = None,
+    ollama_url: str | None = None,
+    ollama_model: str | None = None,
+    session: Session | None = None,
 ) -> list[str]:
     """根据 8 个关键词及知识库，批量生成 30 篇 GEO 文章标题。"""
     brands = brand_keywords or DEFAULT_BRAND_KEYWORDS
     industries = industry_keywords or DEFAULT_INDUSTRY_KEYWORDS
     prompt = build_geo_titles_prompt(brands, industries, count=count)
 
-    response = await ai_generate(prompt)
+    provider = get_provider(
+        name=provider_name,
+        base_url=ollama_url if provider_name == "ollama" else None,
+        model=ollama_model if provider_name == "ollama" else None,
+        session=session,
+    )
+    response = await provider.generate(prompt)
 
     # 尝试解析 JSON 数组
     try:
@@ -109,14 +119,27 @@ async def generate_geo_titles(
     return titles[:count]
 
 
-async def generate_geo_four_versions(title: str) -> dict[str, str]:
+async def generate_geo_four_versions(
+    title: str,
+    provider_name: str | None = None,
+    ollama_url: str | None = None,
+    ollama_model: str | None = None,
+    session: Session | None = None,
+) -> dict[str, str]:
     """为单一标题生成 4 个微调版本（豆包、千问、文心一言、元宝）。"""
     engines = ["doubao", "qwen", "ernie", "yuanbao"]
     results = {}
 
+    provider = get_provider(
+        name=provider_name,
+        base_url=ollama_url if provider_name == "ollama" else None,
+        model=ollama_model if provider_name == "ollama" else None,
+        session=session,
+    )
+
     for engine in engines:
         prompt = build_geo_article_prompt(title, target_engine=engine)
-        content = await ai_generate(prompt)
+        content = await provider.generate(prompt)
         results[engine] = content
 
     return results

@@ -15,7 +15,7 @@ from typing import Any
 
 from sqlalchemy.orm import Session
 
-from ..ai import ai_generate
+from ..ai import get_provider
 from ..knowledge.prompts import (
     build_wechat_article_prompt,
     build_wechat_poster_prompt,
@@ -31,15 +31,26 @@ async def generate_wechat_article(
     hotspot_summary: str,
     angle: str = "",
     theme: str = "graphite",
+    provider_name: str | None = None,
+    ollama_url: str | None = None,
+    ollama_model: str | None = None,
+    session: Session | None = None,
 ) -> dict[str, Any]:
     """端到端生成一篇排版优美、带贴图文案的完整微信公众号文章资产。"""
+    provider = get_provider(
+        name=provider_name,
+        base_url=ollama_url if provider_name == "ollama" else None,
+        model=ollama_model if provider_name == "ollama" else None,
+        session=session,
+    )
+
     # 1. 生成长文正文 (Markdown)
     article_prompt = build_wechat_article_prompt(hotspot_summary, angle=angle)
-    markdown_content = await ai_generate(article_prompt)
+    markdown_content = await provider.generate(article_prompt)
 
     # 2. 生成标题候选
     titles_prompt = build_wechat_titles_prompt(markdown_content)
-    titles_raw = await ai_generate(titles_prompt)
+    titles_raw = await provider.generate(titles_prompt)
     titles = []
     try:
         clean = titles_raw.strip()
@@ -53,8 +64,8 @@ async def generate_wechat_article(
 
     chosen_title = titles[0] if titles else "AI重塑软件开发：从代码补全到智能体全生命周期交付"
 
-    # 3. 提取摘要 (前 100 字作为微信摘要)
-    digest = f"本文结合最新行业动态，深度剖析 AI 研发协作痛点及 Agent 架构如何解放开发者。"
+    # 3. 提取摘要
+    digest = "本文结合最新行业动态，深度剖析 AI 研发协作痛点及 Agent 架构如何解放开发者。"
 
     # 4. 执行排版，生成微信原生支持的内联样式 HTML
     rendered_html = render_wechat_article(
@@ -66,7 +77,7 @@ async def generate_wechat_article(
 
     # 5. 衍生 300 字贴图文案与 3:4 封面图提示词
     poster_prompts = build_wechat_poster_prompt(markdown_content)
-    poster_copy = await ai_generate(poster_prompts["copy_prompt"])
+    poster_copy = await provider.generate(poster_prompts["copy_prompt"])
     poster_image_prompt = (
         f"结合标题《{chosen_title}》，生成一张适合公众号贴图的主图，"
         f"比例 3:4，海报风格，标题文字占据版面上半部分并强烈醒目，科技感现代扁平插画。"
@@ -112,7 +123,7 @@ def save_wechat_article_to_db(
         article_id=article.id,
         platform="wechat_mp",
         title=article_data["title"],
-        content=article_data["rendered_html"],  # 微信端直接使用排版后的富文本
+        content=article_data["rendered_html"],
         metadata_json=json.dumps(metadata),
         version=1,
     )

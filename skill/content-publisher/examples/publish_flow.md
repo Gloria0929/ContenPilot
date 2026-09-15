@@ -1,5 +1,21 @@
 # 发布流程示例
 
+## 场景 0：AI 生产引擎配置与连通性检测
+
+```bash
+# 1. 检测 ChatGPT (OpenAI API) 连通性
+curl -s -X POST "$BASE_URL/api/pipeline/ai/ping" -H "$AUTH" -H "Content-Type: application/json" \
+  -d '{"provider": "openai"}'
+
+# 2. 检测本地/远程 Ollama 并获取已安装模型列表
+curl -s -X POST "$BASE_URL/api/pipeline/ollama/ping" -H "$AUTH" -H "Content-Type: application/json" \
+  -d '{"url": "http://localhost:11434"}'
+
+# 3. 设置全局使用 Ollama 驱动内容生成
+curl -s -X PUT "$BASE_URL/api/settings" -H "$AUTH" -H "Content-Type: application/json" \
+  -d '{"settings": {"ai_provider": "ollama", "ollama_base_url": "http://localhost:11434", "ollama_model": "qwen2.5"}}'
+```
+
 ## 场景 A：API 平台（cnblogs / wechat_mp）自动发布
 
 ```bash
@@ -74,6 +90,6 @@ curl -s -X POST "$BASE_URL/api/pipeline/video/render" -H "$AUTH" -H "Content-Typ
     "video_script": "生成的口播文案...",
     "video_subject": "AI黑客自动化攻击时代来临",
     "video_aspect_ratio": "9:16",
-    "money_printer_url": "http://localhost:8501"
+    "money_printer_url": "http://localhost:8080"
   }'
 ```

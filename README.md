@@ -240,6 +240,27 @@ docker compose logs -f publisher
 
 浏览器访问 `http://localhost:8000`，默认账号 `admin / admin`；人工接管（扫码/验证码）入口在 `http://localhost:6080`。
 
+### 启用 MoneyPrinterTurbo 视频剪辑
+
+MoneyPrinterTurbo 是可选依赖，默认不随 ContentPilot 启动。需要自动剪辑时启用
+`video` profile；API 会在 Compose 私有网络中通过
+`http://moneyprinterturbo:8080` 被 ContentPilot 调用：
+
+```bash
+# 同时启动 ContentPilot 与 MoneyPrinterTurbo API
+docker compose --profile video up -d --build
+
+# 也可以分别启动
+docker compose up -d --build publisher
+docker compose --profile video up -d moneyprinterturbo
+```
+
+MoneyPrinterTurbo API 文档位于 `http://localhost:8080/docs`。正式生成视频前，
+请在 `docker/moneyprinterturbo.config.toml` 的 `pexels_api_keys`、
+`pixabay_api_keys` 或 `coverr_api_keys` 中配置至少一个素材源。生成产物持久化在
+`./data/moneyprinterturbo`。ContentPilot 没有启动该 profile 时仍可正常工作，
+只有“一键触发自动剪辑”功能会因依赖不可达而返回错误。
+
 ### 启用 AI 生成能力
 
 `docker-compose.yml` 通过 `${ANTHROPIC_API_KEY:-}` 读取宿主机环境变量，两种方式任选：
@@ -294,6 +315,7 @@ docker compose exec publisher publisher browser login csdn -a csdn_default
 |---|---|
 | 8000 | Web API + Web 管理台 |
 | 6080 | noVNC（浏览器人工接管，如扫码登录） |
+| 8080 | MoneyPrinterTurbo API（启用 `video` profile 时，仅映射到宿主机回环地址） |
 
 数据卷（宿主机持久化）：
 
@@ -302,6 +324,7 @@ docker compose exec publisher publisher browser login csdn -a csdn_default
 | `./data` | SQLite 数据库、浏览器登录态、CLI token |
 | `./uploads` | 上传文件 |
 | `./logs` | 日志与诊断信息（截图 / Trace） |
+| `./data/moneyprinterturbo` | MoneyPrinterTurbo 视频任务与生成产物 |
 
 > 注意：容器内通过 `PUBLISHER_DATA_DIR=/data` 等 ENV 固定路径，与本机部署的
 > `~/.contentpilot/` 相互独立——本机 CLI 与容器 Worker 不会共享同一个 SQLite
@@ -381,6 +404,7 @@ Worker 启动时会自动把遗留的 `processing` 孤儿任务复位回 `queued
 | `PUBLISHER_HEADLESS` | `true` | Playwright 无头模式 |
 | `PUBLISHER_BROWSER_LOGIN_TIMEOUT` | `300` | browser login 等待登录完成超时（秒） |
 | `PUBLISHER_AI_PROVIDER` / `PUBLISHER_AI_MODEL` / `PUBLISHER_AI_BASE_URL` | 见 AI 章节 | AI Provider 配置 |
+| `MONEYPRINTERTURBO_URL` | `http://moneyprinterturbo:8080` | MoneyPrinterTurbo API 地址；同一 Compose 使用服务名，外部部署时可通过 `.env` 覆盖 |
 
 ## Web 前端开发
 

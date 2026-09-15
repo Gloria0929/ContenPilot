@@ -1,0 +1,19 @@
+# MoneyPrinterTurbo API 的最小持久化配置。
+# 在线素材生成前，请至少配置一个素材源的 API Key。
+
+log_level = "INFO"
+listen_host = "0.0.0.0"
+listen_port = 8081
+
+[app]
+# API 仅发布到宿主机 127.0.0.1，并通过 Compose 私有网络供 ContentPilot 调用。
+# 如果以后需要对外暴露，请配置 api_key，并让 ContentPilot 同步发送 x-api-key。
+api_key = ""
+max_concurrent_tasks = 2
+max_queued_tasks = 20
+
+# 默认使用 Pexels 素材。填入 Key 后再提交正式视频任务。
+video_source = "pexels"
+pexels_api_keys = []
+pixabay_api_keys = []
+coverr_api_keys = []

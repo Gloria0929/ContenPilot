@@ -10,10 +10,46 @@ services:
       - PUBLISHER_SESSION_SECRET=xWnthljAOpIOoK2PDo7EIkAI5dMzEJOWTJ/FSZwSIOs=
       - HEADLESS=false
       - PUBLISHER_HEADLESS=false
-      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      # AI Provider 配置：优先使用 ChatGPT (OpenAI) / Ollama，避免回落到 Anthropic
+      - PUBLISHER_AI_PROVIDER=${PUBLISHER_AI_PROVIDER:-openai}
+      - PUBLISHER_AI_BASE_URL=${PUBLISHER_AI_BASE_URL:-https://api.openai.com/v1}
+      - PUBLISHER_AI_MODEL=${PUBLISHER_AI_MODEL:-gpt-4o-mini}
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      # MoneyPrinterTurbo API 地址（可选依赖，可通过 .env 覆盖）
+      # 常见取值：
+      #   同一 compose 网络：http://moneyprinterturbo:8081
+      #   同机但独立容器：http://host.docker.internal:8081
+      #   局域网另一台机器：http://192.168.x.x:8081
+      #   远程/公网：https://your-domain.com
+      - MONEYPRINTERTURBO_URL=${MONEYPRINTERTURBO_URL:-http://moneyprinterturbo:8081}
+      # 挂载源码优先加载
+      - PYTHONPATH=/app/src
     volumes:
       - ./data:/data
       - ./uploads:/uploads
       - ./logs:/logs
+      - ./src:/app/src
+      - ./web/dist:/app/web/dist
     restart: unless-stopped
+    # 已移除 depends_on：publisher 可独立启动，仅在调用相关功能时才需要 MoneyPrinterTurbo
+
+  moneyprinterturbo:
+    # 可选视频能力：docker compose --profile video up -d
+    profiles: ["video"]
+    image: ghcr.1ms.run/harry0703/moneyprinterturbo:latest
+    container_name: moneyprinterturbo
+    command: ["python3", "main.py"]
+    ports:
+      - "127.0.0.1:8081:8080"   # API 文档：http://localhost:8080/docs
+    volumes:
+      - ./docker/moneyprinterturbo.config.toml:/MoneyPrinterTurbo/config.toml
+      - ./data/moneyprinterturbo:/MoneyPrinterTurbo/storage
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8081/ping', timeout=3)"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s

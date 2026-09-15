@@ -1,9 +1,91 @@
 <template>
   <div class="settings">
+    <el-card shadow="never" class="ai-engine-card">
+      <template #header>
+        <div class="apikey-header">
+          <span>AI 生产引擎</span>
+          <el-tag
+            size="small"
+            :type="aiForm.ai_provider === 'ollama' ? 'success' : 'primary'"
+          >
+            {{
+              aiForm.ai_provider === "ollama"
+                ? "本地 / 远程 Ollama"
+                : "ChatGPT (OpenAI API)"
+            }}
+          </el-tag>
+        </div>
+      </template>
+      <div class="setting-desc engine-tip">
+        内容工坊（GEO 矩阵、公众号、短视频）生成内容时使用的全局 AI
+        引擎与凭证，保存后立即对全站生效。
+      </div>
+      <el-form label-position="top" class="engine-form">
+        <el-form-item label="引擎类型">
+          <el-radio-group v-model="aiForm.ai_provider">
+            <el-radio-button value="openai">OpenAI 兼容 API</el-radio-button>
+            <el-radio-button value="ollama">本地 / 远程 Ollama</el-radio-button>
+          </el-radio-group>
+        </el-form-item>
+
+        <template v-if="aiForm.ai_provider === 'openai'">
+          <el-form-item label="API 地址 (Base URL)">
+            <el-input
+              v-model="aiForm.openai_base_url"
+              placeholder="https://api.openai.com/v1"
+            />
+          </el-form-item>
+          <el-form-item label="API Key">
+            <el-input
+              v-model="aiForm.openai_api_key"
+              show-password
+              placeholder="sk-...（OpenAI 或兼容中转服务密钥）"
+            />
+          </el-form-item>
+          <el-form-item label="模型">
+            <el-input v-model="aiForm.openai_model" placeholder="gpt-4o-mini" />
+          </el-form-item>
+        </template>
+
+        <template v-else>
+          <el-form-item label="Ollama 服务地址">
+            <el-input
+              v-model="aiForm.ollama_base_url"
+              placeholder="http://localhost:11434 或 http://192.168.x.x:11434"
+            />
+          </el-form-item>
+          <el-form-item label="模型名">
+            <el-input
+              v-model="aiForm.ollama_model"
+              placeholder="qwen2.5 / llama3.1"
+            />
+          </el-form-item>
+        </template>
+
+        <div class="engine-actions">
+          <el-button :loading="testingAI" @click="testAI">测试连通性</el-button>
+          <el-button type="primary" :loading="savingAI" @click="saveAI"
+            >保存配置</el-button
+          >
+        </div>
+        <div
+          v-if="pingResult"
+          class="ping-result"
+          :class="{ ok: pingResult.connected }"
+        >
+          {{ pingResult.message
+          }}<template v-if="pingResult.connected && pingResult.models?.length">
+            ：{{ pingResult.models.slice(0, 12).join("、")
+            }}{{ pingResult.models.length > 12 ? " 等" : "" }}</template
+          >
+        </div>
+      </el-form>
+    </el-card>
+
     <el-card shadow="never">
       <template #header>运行时设置</template>
       <div v-loading="loading" class="setting-list">
-        <div v-for="s in items" :key="s.key" class="setting-item">
+        <div v-for="s in genericItems" :key="s.key" class="setting-item">
           <div class="setting-info">
             <div class="setting-label">{{ s.label }}</div>
             <div class="setting-desc">{{ s.description }}</div>
@@ -176,6 +258,99 @@ const items = ref<any[]>([]);
 const loading = ref(false);
 const saving = ref("");
 
+// ---- AI 生产引擎配置 ----
+const AI_SETTING_KEYS = [
+  "ai_provider",
+  "openai_base_url",
+  "openai_api_key",
+  "openai_model",
+  "ollama_base_url",
+  "ollama_model",
+] as const;
+
+const aiForm = ref<Record<string, string>>({
+  ai_provider: "openai",
+  openai_base_url: "https://api.openai.com/v1",
+  openai_api_key: "",
+  openai_model: "gpt-4o-mini",
+  ollama_base_url: "http://localhost:11434",
+  ollama_model: "qwen2.5",
+});
+const savingAI = ref(false);
+const testingAI = ref(false);
+const pingResult = ref<{
+  connected: boolean;
+  models?: string[];
+  message: string;
+} | null>(null);
+
+// 运行时设置列表里排除 AI 引擎项（它们在上面专属卡片中编辑）
+const genericItems = computed(() =>
+  items.value.filter(
+    (s) => !(AI_SETTING_KEYS as readonly string[]).includes(s.key),
+  ),
+);
+
+async function loadAI() {
+  try {
+    const r = await api.get("/settings");
+    items.value = r.data;
+    for (const s of r.data) {
+      if (
+        (AI_SETTING_KEYS as readonly string[]).includes(s.key) &&
+        s.value != null &&
+        s.value !== ""
+      ) {
+        aiForm.value[s.key] = s.value;
+      }
+      // API Key 有值时用占位提示代替明文回显
+      if (s.key === "openai_api_key" && s.value) {
+        aiForm.value.openai_api_key = s.value;
+      }
+    }
+  } catch {
+    /* 静默失败，走默认值 */
+  }
+}
+
+async function saveAI() {
+  savingAI.value = true;
+  try {
+    for (const key of AI_SETTING_KEYS) {
+      await api.post("/settings", { key, value: aiForm.value[key] });
+    }
+    ElMessage.success("AI 生产引擎配置已保存，已对内容工坊全站生效");
+    pingResult.value = null;
+  } catch (e: any) {
+    ElMessage.error(e?.response?.data?.detail || "保存失败");
+  } finally {
+    savingAI.value = false;
+  }
+}
+
+async function testAI() {
+  testingAI.value = true;
+  pingResult.value = null;
+  try {
+    const r = await api.post("/pipeline/ai/ping", {
+      provider: aiForm.value.ai_provider,
+      openai_base_url: aiForm.value.openai_base_url,
+      openai_api_key: aiForm.value.openai_api_key,
+      ollama_url: aiForm.value.ollama_base_url,
+    });
+    pingResult.value = r.data;
+    if (r.data?.connected) {
+      ElMessage.success(r.data.message || "连接成功");
+    } else {
+      ElMessage.warning(r.data?.message || "连接失败");
+    }
+  } catch (e: any) {
+    ElMessage.error(e?.response?.data?.detail || "测试请求失败");
+  } finally {
+    testingAI.value = false;
+  }
+}
+
 const apiKeys = ref<any[]>([]);
 const showCreate = ref(false);
 const creating = ref(false);
@@ -303,6 +478,7 @@ function downloadConfig() {
 }
 
 onMounted(() => {
+  loadAI();
   load();
   loadKeys();
 });
@@ -312,6 +488,27 @@ onMounted(() => {
 .settings {
   display: grid;
   gap: 16px;
+}
+.engine-tip {
+  margin-bottom: 14px;
+}
+.engine-form {
+  max-width: 560px;
+}
+.engine-actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 4px;
+}
+.ping-result {
+  margin-top: 12px;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--el-color-danger);
+  word-break: break-all;
+}
+.ping-result.ok {
+  color: var(--el-color-success);
 }
 .apikey-header {
   display: flex;

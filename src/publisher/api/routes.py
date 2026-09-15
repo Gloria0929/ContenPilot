@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from typing import Any
+from urllib.parse import urlparse
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse, StreamingResponse
@@ -738,16 +739,32 @@ class GeoTitlesIn(BaseModel):
     brand_keywords: list[str] | None = None
     industry_keywords: list[str] | None = None
     count: int = 30
+    provider: str | None = None
+    ollama_url: str | None = None
+    ollama_model: str | None = None
 
 
 @router.post("/pipeline/geo/titles")
-async def api_generate_geo_titles(payload: GeoTitlesIn, auth=Depends(get_current_auth)):
+async def api_generate_geo_titles(
+    payload: GeoTitlesIn,
+    db: Session = Depends(get_db),
+    auth=Depends(get_current_auth),
+):
     from ..pipeline import generate_geo_titles
-    titles = await generate_geo_titles(
-        brand_keywords=payload.brand_keywords,
-        industry_keywords=payload.industry_keywords,
-        count=payload.count,
-    )
+    try:
+        titles = await generate_geo_titles(
+            brand_keywords=payload.brand_keywords,
+            industry_keywords=payload.industry_keywords,
+            count=payload.count,
+            provider_name=payload.provider,
+            ollama_url=payload.ollama_url,
+            ollama_model=payload.ollama_model,
+            session=db,
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise _ai_error(e) from e
     return {"titles": titles}
 
 
@@ -755,6 +772,9 @@ class GeoBatchIn(BaseModel):
     titles: list[str]
     days: int = 10
     platforms: list[str] | None = None
+    provider: str | None = None
+    ollama_url: str | None = None
+    ollama_model: str | None = None
 
 
 @router.post("/pipeline/geo/batch")
@@ -769,17 +789,29 @@ async def api_create_geo_batch(
         schedule_10day_distribution,
     )
     created_articles = []
-    for title in payload.titles:
-        versions = await generate_geo_four_versions(title)
-        article = save_geo_article_to_db(db, title, versions, target_platforms=payload.platforms)
-        created_articles.append(article.id)
+    try:
+        for title in payload.titles:
+            versions = await generate_geo_four_versions(
+                title,
+                provider_name=payload.provider,
+                ollama_url=payload.ollama_url,
+                ollama_model=payload.ollama_model,
+                session=db,
+            )
+            article = save_geo_article_to_db(db, title, versions, target_platforms=payload.platforms)
+            created_articles.append(article.id)
 
-    tasks = schedule_10day_distribution(
-        db,
-        created_articles,
-        platforms=payload.platforms,
-        days=payload.days,
-    )
+        tasks = schedule_10day_distribution(
+            db,
+            created_articles,
+            platforms=payload.platforms,
+            days=payload.days,
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        raise _ai_error(e) from e
     return {
         "article_count": len(created_articles),
         "task_count": len(tasks),
@@ -792,6 +824,9 @@ class WechatGenerateIn(BaseModel):
     angle: str = ""
     theme: str = "graphite"
     save_to_db: bool = True
+    provider: str | None = None
+    ollama_url: str | None = None
+    ollama_model: str | None = None
 
 
 @router.post("/pipeline/wechat/generate")
@@ -801,9 +836,20 @@ async def api_generate_wechat(
     auth=Depends(get_current_auth),
 ):
     from ..pipeline import generate_wechat_article, save_wechat_article_to_db
-    res = await generate_wechat_article(
-        payload.hotspot, angle=payload.angle, theme=payload.theme
-    )
+    try:
+        res = await generate_wechat_article(
+            payload.hotspot,
+            angle=payload.angle,
+            theme=payload.theme,
+            provider_name=payload.provider,
+            ollama_url=payload.ollama_url,
+            ollama_model=payload.ollama_model,
+            session=db,
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise _ai_error(e) from e
     article_id = None
     if payload.save_to_db:
         art = save_wechat_article_to_db(db, res)
@@ -814,15 +860,32 @@ async def api_generate_wechat(
 class VideoScriptIn(BaseModel):
     hotspot: str
     angle: str = ""
+    provider: str | None = None
+    ollama_url: str | None = None
+    ollama_model: str | None = None
 
 
 @router.post("/pipeline/video/script")
 async def api_generate_video_script(
     payload: VideoScriptIn,
+    db: Session = Depends(get_db),
     auth=Depends(get_current_auth),
 ):
     from ..pipeline import generate_short_video_script
-    return await generate_short_video_script(payload.hotspot, angle=payload.angle)
+    try:
+        return await generate_short_video_script(
+            payload.hotspot,
+            angle=payload.angle,
+            provider_name=payload.provider,
+            ollama_url=payload.ollama_url,
+            ollama_model=payload.ollama_model,
+            session=db,
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise _ai_error(e) from e
+
 
 
 class VideoRenderIn(BaseModel):
@@ -830,7 +893,7 @@ class VideoRenderIn(BaseModel):
     video_subject: str
     voice_name: str = "zh-CN-YunxiNeural"
     video_aspect_ratio: str = "9:16"
-    money_printer_url: str = "http://localhost:8501"
+    money_printer_url: str | None = None
 
 
 @router.post("/pipeline/video/render")
@@ -838,17 +901,141 @@ async def api_render_video(
     payload: VideoRenderIn,
     auth=Depends(get_current_auth),
 ):
+    import os
     from ..pipeline import MoneyPrinterTurboClient
-    client = MoneyPrinterTurboClient(base_url=payload.money_printer_url)
-    return await client.create_video_task(
+
+    env_url = os.environ.get("MONEYPRINTERTURBO_URL")
+    target_url = payload.money_printer_url or env_url or "http://localhost:8080"
+
+    # 浏览器界面的 localhost 指向用户电脑，而请求实际由后端发出。在 Compose
+    # 中有明确环境变量时，将回环地址映射到同网络的 MoneyPrinterTurbo 服务。
+    if env_url and urlparse(target_url).hostname in {"localhost", "127.0.0.1", "::1"}:
+        target_url = env_url
+
+    client = MoneyPrinterTurboClient(base_url=target_url)
+    res = await client.create_video_task(
         video_script=payload.video_script,
         video_subject=payload.video_subject,
         voice_name=payload.voice_name,
         video_aspect_ratio=payload.video_aspect_ratio,
     )
 
+    return res
+
+
+class OllamaPingIn(BaseModel):
+    url: str = "http://localhost:11434"
+
+
+@router.post("/pipeline/ollama/ping")
+async def api_ping_ollama(
+    payload: OllamaPingIn,
+    auth=Depends(get_current_auth),
+):
+    from ..ai import OllamaProvider
+    models = await OllamaProvider.list_models(payload.url)
+    return {
+        "connected": len(models) > 0,
+        "url": payload.url,
+        "models": models,
+    }
+
+
+class AIPingIn(BaseModel):
+    """测试 AI 生产引擎连通性。字段缺省时使用「设置」中保存的当前配置。"""
+
+    provider: str | None = None  # openai / ollama
+    openai_base_url: str | None = None
+    openai_api_key: str | None = None
+    ollama_url: str | None = None
+
+
+@router.post("/pipeline/ai/ping")
+async def api_ping_ai(
+    payload: AIPingIn,
+    db: Session = Depends(get_db),
+    auth=Depends(get_current_auth),
+):
+    import os
+
+    from ..ai import OllamaProvider, OpenAICompatProvider
+    from ..services.setting_service import get_setting
+
+    provider_name = (
+        payload.provider or get_setting(db, "ai_provider") or "openai"
+    ).lower()
+
+    if provider_name in ("ollama", "local_ollama", "remote_ollama"):
+        url = (
+            payload.ollama_url
+            or get_setting(db, "ollama_base_url")
+            or os.environ.get("OLLAMA_BASE_URL")
+            or os.environ.get("OLLAMA_HOST")
+            or "http://localhost:11434"
+        )
+        models = await OllamaProvider.list_models(url)
+        return {
+            "connected": len(models) > 0,
+            "provider": "ollama",
+            "models": models,
+            "message": (
+                f"Ollama 连接成功，检测到 {len(models)} 个模型"
+                if models
+                else "无法连接 Ollama，请确认服务已启动且地址正确"
+            ),
+        }
+
+    base = (
+        payload.openai_base_url
+        or get_setting(db, "openai_base_url")
+        or os.environ.get("PUBLISHER_AI_BASE_URL")
+        or "https://api.openai.com/v1"
+    )
+    key = (
+        payload.openai_api_key
+        if payload.openai_api_key is not None
+        else (
+            get_setting(db, "openai_api_key")
+            or os.environ.get("OPENAI_API_KEY")
+            or ""
+        )
+    )
+    models = await OpenAICompatProvider.list_models(base, key)
+    return {
+        "connected": len(models) > 0,
+        "provider": "openai",
+        "models": models[:50],
+        "message": (
+            f"API 连接成功，检测到 {len(models)} 个可用模型"
+            if models
+            else "无法连接或鉴权失败，请检查 API 地址与 Key"
+        ),
+    }
+
+
+def _ai_error(e: Exception) -> HTTPException:
+    """AI 调用失败的统一兜底：引导用户去设置页检查引擎配置。"""
+    return HTTPException(
+        status_code=502,
+        detail=(
+            f"AI 服务调用失败：{str(e)[:200]}。"
+            "请前往「设置 → AI 生产引擎」检查 API 地址 / Key / 模型，或切换 Ollama 引擎。"
+        ),
+    )
+
 
 @router.get("/pipeline/hotspots")
-async def api_get_hotspots(auth=Depends(get_current_auth)):
-    from ..pipeline import fetch_daily_hotspots
-    return await fetch_daily_hotspots()
+async def api_get_hotspots(
+    provider: str | None = None,
+    ollama_url: str | None = None,
+    ollama_model: str | None = None,
+    db: Session = Depends(get_db),
+    auth=Depends(get_current_auth),
+):
+    from ..pipeline.hotspot import fetch_daily_hotspots
+    return await fetch_daily_hotspots(
+        provider_type=provider,
+        ollama_url=ollama_url,
+        ollama_model=ollama_model,
+        session=db,
+    )

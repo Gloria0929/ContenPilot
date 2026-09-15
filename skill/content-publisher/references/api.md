@@ -27,16 +27,25 @@ allow_override_review 权限位的密钥）。
 
 base_url 形如 `http://127.0.0.1:8000`，所有路径加 `/api` 前缀。
 
-### 业务流水线（GEO 矩阵 / 公众号 / 短视频 / 热点）
+### 业务流水线（GEO 矩阵 / 公众号 / 短视频 / 热点 / AI 引擎）
 
 | 用途 | REST API | 说明 |
 |---|---|---|
-| 批量生成 GEO 标题 | `POST /api/pipeline/geo/titles` | 传入 `brand_keywords`, `industry_keywords`, `count`（默认 30 篇） |
-| 批量生成 4 版本 + 10 天排期 | `POST /api/pipeline/geo/batch` | 传入 `titles`, `days`（默认 10 天），自动创建各搜索引擎偏好版本与错峰排期任务 |
-| 公众号文章生成与排版 | `POST /api/pipeline/wechat/generate` | 传入 `hotspot`, `theme`（6 种主题），返回带内联排版 HTML、300 字贴图文案与封面 Prompt |
-| 短视频口播脚本生成 | `POST /api/pipeline/video/script` | 传入 `hotspot`，生成 600 字口播脚本、黄金前 3 秒钩子、分镜清单与封面 Prompt |
+| 批量生成 GEO 标题 | `POST /api/pipeline/geo/titles` | 传入 `brand_keywords`, `industry_keywords`, `count`，可选 `provider` (`openai`/`ollama`), `ollama_url`, `ollama_model` |
+| 批量生成 4 版本 + 10 天排期 | `POST /api/pipeline/geo/batch` | 传入 `titles`, `days`（默认 10 天），可选引擎覆盖参数，自动创建各搜索引擎偏好版本与错峰排期任务 |
+| 公众号文章生成与排版 | `POST /api/pipeline/wechat/generate` | 传入 `hotspot`, `theme`（6 种主题），可选引擎参数，返回带内联排版 HTML、300 字贴图文案与封面 Prompt |
+| 短视频口播脚本生成 | `POST /api/pipeline/video/script` | 传入 `hotspot`，可选引擎参数，生成 600 字口播脚本、黄金前 3 秒钩子、分镜清单与封面 Prompt |
 | 提交自动剪辑 | `POST /api/pipeline/video/render` | 向 MoneyPrinterTurbo 服务提交自动剪辑合成任务 |
-| 获取今日热点 | `GET /api/pipeline/hotspots` | 聚合今日软件工程与 AI Agent 行业技术热点 |
+| 获取今日热点 | `GET /api/pipeline/hotspots` | 可选查询参数 `provider`, `ollama_url`, `ollama_model`。前端会自动做本地持久化缓存，只有用户点击刷新按钮时才触发调用 |
+| AI 生产引擎连通性测试 | `POST /api/pipeline/ai/ping` | 传入可选 `provider`, `openai_base_url`, `openai_api_key`, `ollama_url`，缺省时使用系统全局配置进行探测 |
+| Ollama 服务与模型探测 | `POST /api/pipeline/ollama/ping` | 传入 `url`，探测本地或远程 Ollama 服务连通性并返回已拉取的可用模型列表 |
+
+### 系统全局设置（AI 生产引擎等）
+
+| CLI / 功能 | REST API | 说明 |
+|---|---|---|
+| 读取全局设置 | `GET /api/settings` | 读取全局配置（包括 `ai_provider`, `openai_base_url`, `openai_model`, `ollama_base_url`, `ollama_model` 等） |
+| 更新全局设置 | `PUT /api/settings` | 批量保存设置键值对 `{"settings": {"ai_provider": "openai", ...}}` |
 
 ### 文章
 
@@ -90,24 +99,39 @@ base_url 形如 `http://127.0.0.1:8000`，所有路径加 `/api` 前缀。
 
 ## curl 示例
 
-### 1. GEO 批量标题与任务创建
+### 1. 测试 AI 生产引擎连通性
 ```bash
-# 批量生成 30 篇标题
+# 测试 ChatGPT (OpenAI API) 连通性
+curl -s -X POST "$BASE_URL/api/pipeline/ai/ping" -H "$AUTH" -H "Content-Type: application/json" \
+  -d '{"provider": "openai"}'
+
+# 探测本地或远程 Ollama 实例并获取模型清单
+curl -s -X POST "$BASE_URL/api/pipeline/ollama/ping" -H "$AUTH" -H "Content-Type: application/json" \
+  -d '{"url": "http://localhost:11434"}'
+```
+
+### 2. GEO 批量标题与任务创建（支持指定 Ollama 或 ChatGPT）
+```bash
+# 使用全局默认配置生成 30 篇标题
 curl -s -X POST "$BASE_URL/api/pipeline/geo/titles" -H "$AUTH" -H "Content-Type: application/json" \
   -d '{"brand_keywords": ["敖行客", "AT Work", "Agent研发工作台"], "count": 30}'
+
+# 显式使用本地 Ollama (qwen2.5) 生成
+curl -s -X POST "$BASE_URL/api/pipeline/geo/titles" -H "$AUTH" -H "Content-Type: application/json" \
+  -d '{"brand_keywords": ["敖行客", "AT Work"], "count": 10, "provider": "ollama", "ollama_url": "http://localhost:11434", "ollama_model": "qwen2.5"}'
 
 # 一键生成 4 版本并创建 10 天发布排期
 curl -s -X POST "$BASE_URL/api/pipeline/geo/batch" -H "$AUTH" -H "Content-Type: application/json" \
   -d '{"titles": ["标题1", "标题2"], "days": 10}'
 ```
 
-### 2. 公众号排版与贴图生成
+### 3. 公众号排版与贴图生成
 ```bash
 curl -s -X POST "$BASE_URL/api/pipeline/wechat/generate" -H "$AUTH" -H "Content-Type: application/json" \
   -d '{"hotspot": "Spotify负责人称AI想直接做完工作", "theme": "graphite", "save_to_db": true}'
 ```
 
-### 3. 短视频口播文案生成
+### 4. 短视频口播文案生成
 ```bash
 curl -s -X POST "$BASE_URL/api/pipeline/video/script" -H "$AUTH" -H "Content-Type: application/json" \
   -d '{"hotspot": "AI Agent 让网络攻击自动化"}'
