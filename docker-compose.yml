@@ -31,7 +31,6 @@ services:
       - ./uploads:/uploads
       - ./logs:/logs
       - ./src:/app/src
-      - ./web/dist:/app/web/dist
     restart: unless-stopped
     # 已移除 depends_on：publisher 可独立启动，仅在调用相关功能时才需要 MoneyPrinterTurbo
 
