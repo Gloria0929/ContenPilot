@@ -65,6 +65,7 @@ import {
   SwitchButton,
   Promotion,
   Odometer,
+  MagicStick,
   Document,
   Share,
   CircleCheck,
@@ -84,6 +85,7 @@ const currentPath = computed(() => route.path);
 
 const menuOptions = [
   { label: "工作台", key: "/", icon: Odometer },
+  { label: "内容工坊", key: "/studio", icon: MagicStick },
   { label: "文章管理", key: "/articles", icon: Document },
   { label: "发布内容", key: "/publish", icon: Share },
   { label: "内容审核", key: "/review", icon: CircleCheck },
@@ -97,6 +99,7 @@ const menuOptions = [
 const pageTitle = computed(() => {
   const map: Record<string, string> = {
     "/": "工作台",
+    "/studio": "AI 内容工坊 (GEO 矩阵 / 公众号 / 短视频)",
     "/articles": "文章管理",
     "/publish": "发布内容",
     "/review": "内容审核",

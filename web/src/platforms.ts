@@ -10,6 +10,9 @@ export const PLATFORM_LABELS: Record<string, string> = {
   qiehao: "企鹅号",
   "51cto": "51CTO",
   tencent_cloud: "腾讯云开发者社区",
+  zhihu: "知乎",
+  toutiao: "今日头条",
+  wechat_mp: "微信公众号",
 };
 
 /** 显示名：中文名（英文标识），无映射时回退英文标识。 */

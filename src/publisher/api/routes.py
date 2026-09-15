@@ -730,3 +730,125 @@ async def events(auth=Depends(get_current_auth)):
             event_bus.unsubscribe("*", queue)
 
     return StreamingResponse(gen(), media_type="text/event-stream")
+
+
+# ---- Pipeline Workflows (GEO / Wechat / Video / Hotspot) ----
+
+class GeoTitlesIn(BaseModel):
+    brand_keywords: list[str] | None = None
+    industry_keywords: list[str] | None = None
+    count: int = 30
+
+
+@router.post("/pipeline/geo/titles")
+async def api_generate_geo_titles(payload: GeoTitlesIn, auth=Depends(get_current_auth)):
+    from ..pipeline import generate_geo_titles
+    titles = await generate_geo_titles(
+        brand_keywords=payload.brand_keywords,
+        industry_keywords=payload.industry_keywords,
+        count=payload.count,
+    )
+    return {"titles": titles}
+
+
+class GeoBatchIn(BaseModel):
+    titles: list[str]
+    days: int = 10
+    platforms: list[str] | None = None
+
+
+@router.post("/pipeline/geo/batch")
+async def api_create_geo_batch(
+    payload: GeoBatchIn,
+    db: Session = Depends(get_db),
+    auth=Depends(get_current_auth),
+):
+    from ..pipeline import (
+        generate_geo_four_versions,
+        save_geo_article_to_db,
+        schedule_10day_distribution,
+    )
+    created_articles = []
+    for title in payload.titles:
+        versions = await generate_geo_four_versions(title)
+        article = save_geo_article_to_db(db, title, versions, target_platforms=payload.platforms)
+        created_articles.append(article.id)
+
+    tasks = schedule_10day_distribution(
+        db,
+        created_articles,
+        platforms=payload.platforms,
+        days=payload.days,
+    )
+    return {
+        "article_count": len(created_articles),
+        "task_count": len(tasks),
+        "article_ids": created_articles,
+    }
+
+
+class WechatGenerateIn(BaseModel):
+    hotspot: str
+    angle: str = ""
+    theme: str = "graphite"
+    save_to_db: bool = True
+
+
+@router.post("/pipeline/wechat/generate")
+async def api_generate_wechat(
+    payload: WechatGenerateIn,
+    db: Session = Depends(get_db),
+    auth=Depends(get_current_auth),
+):
+    from ..pipeline import generate_wechat_article, save_wechat_article_to_db
+    res = await generate_wechat_article(
+        payload.hotspot, angle=payload.angle, theme=payload.theme
+    )
+    article_id = None
+    if payload.save_to_db:
+        art = save_wechat_article_to_db(db, res)
+        article_id = art.id
+    return {**res, "article_id": article_id}
+
+
+class VideoScriptIn(BaseModel):
+    hotspot: str
+    angle: str = ""
+
+
+@router.post("/pipeline/video/script")
+async def api_generate_video_script(
+    payload: VideoScriptIn,
+    auth=Depends(get_current_auth),
+):
+    from ..pipeline import generate_short_video_script
+    return await generate_short_video_script(payload.hotspot, angle=payload.angle)
+
+
+class VideoRenderIn(BaseModel):
+    video_script: str
+    video_subject: str
+    voice_name: str = "zh-CN-YunxiNeural"
+    video_aspect_ratio: str = "9:16"
+    money_printer_url: str = "http://localhost:8501"
+
+
+@router.post("/pipeline/video/render")
+async def api_render_video(
+    payload: VideoRenderIn,
+    auth=Depends(get_current_auth),
+):
+    from ..pipeline import MoneyPrinterTurboClient
+    client = MoneyPrinterTurboClient(base_url=payload.money_printer_url)
+    return await client.create_video_task(
+        video_script=payload.video_script,
+        video_subject=payload.video_subject,
+        voice_name=payload.voice_name,
+        video_aspect_ratio=payload.video_aspect_ratio,
+    )
+
+
+@router.get("/pipeline/hotspots")
+async def api_get_hotspots(auth=Depends(get_current_auth)):
+    from ..pipeline import fetch_daily_hotspots
+    return await fetch_daily_hotspots()

@@ -1,6 +1,8 @@
 """平台注册表：通过 name 查找 Adapter。新增平台不改 Core。"""
 from __future__ import annotations
 
+from typing import Any
+
 from .base import PlatformAdapter
 
 _registry: dict[str, type[PlatformAdapter]] = {}
@@ -35,6 +37,9 @@ def import_platforms() -> None:
     from . import qiehao  # noqa: F401
     from . import cto51  # noqa: F401  (51cto，模块名避开数字开头)
     from . import tencent_cloud  # noqa: F401
+    from . import zhihu  # noqa: F401
+    from . import toutiao  # noqa: F401
+    from . import wechat_mp  # noqa: F401  (微信公众平台草稿箱 API)
 
 
 def adapter_mode(name: str) -> str:

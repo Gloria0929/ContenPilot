@@ -41,6 +41,8 @@ _MODULES = {
     "qiehao": "publisher.browser.scripts.qiehao",
     "51cto": "publisher.browser.scripts.cto51",
     "tencent_cloud": "publisher.browser.scripts.tencent_cloud",
+    "zhihu": "publisher.browser.scripts.zhihu",
+    "toutiao": "publisher.browser.scripts.toutiao",
 }
 
 

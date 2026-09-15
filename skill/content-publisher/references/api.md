@@ -27,6 +27,17 @@ allow_override_review 权限位的密钥）。
 
 base_url 形如 `http://127.0.0.1:8000`，所有路径加 `/api` 前缀。
 
+### 业务流水线（GEO 矩阵 / 公众号 / 短视频 / 热点）
+
+| 用途 | REST API | 说明 |
+|---|---|---|
+| 批量生成 GEO 标题 | `POST /api/pipeline/geo/titles` | 传入 `brand_keywords`, `industry_keywords`, `count`（默认 30 篇） |
+| 批量生成 4 版本 + 10 天排期 | `POST /api/pipeline/geo/batch` | 传入 `titles`, `days`（默认 10 天），自动创建各搜索引擎偏好版本与错峰排期任务 |
+| 公众号文章生成与排版 | `POST /api/pipeline/wechat/generate` | 传入 `hotspot`, `theme`（6 种主题），返回带内联排版 HTML、300 字贴图文案与封面 Prompt |
+| 短视频口播脚本生成 | `POST /api/pipeline/video/script` | 传入 `hotspot`，生成 600 字口播脚本、黄金前 3 秒钩子、分镜清单与封面 Prompt |
+| 提交自动剪辑 | `POST /api/pipeline/video/render` | 向 MoneyPrinterTurbo 服务提交自动剪辑合成任务 |
+| 获取今日热点 | `GET /api/pipeline/hotspots` | 聚合今日软件工程与 AI Agent 行业技术热点 |
+
 ### 文章
 
 | CLI | REST API |
@@ -51,14 +62,6 @@ base_url 形如 `http://127.0.0.1:8000`，所有路径加 `/api` 前缀。
 | `task cancel <id>` | `POST /api/tasks/{id}/cancel` |
 | （删除终态任务） | `DELETE /api/tasks/{id}` |
 
-`POST /api/publish` 请求体字段：
-
-- `article_id`（必填）：文章必须已处于 `ready` 状态
-- `platforms`（必填）：平台名数组，如 `["juejin", "csdn"]`
-- `account_ids`（可选）：`{平台名: 账号id}`，浏览器平台多账号时指定
-- `review_override` / `publish_override`（可选）：策略覆盖，收紧可用，
-  调松需要密钥带 `allow_override_review` 权限，否则 403
-
 ### 审核
 
 | CLI | REST API |
@@ -76,11 +79,6 @@ base_url 形如 `http://127.0.0.1:8000`，所有路径加 `/api` 前缀。
 | `account disable <key|id>` | `PATCH /api/accounts/{id}` `{"status": "disabled"}` |
 | `account enable <key|id>` | `PATCH /api/accounts/{id}` `{"status": "active"}` |
 
-API 平台（如 cnblogs）的凭据通过 `credentials` 对象传入
-（`{"username": "...", "token": "..."}`，cnblogs 另需 `blog_name`，
-服务端加密存储）。浏览器平台的登录（storage_state）必须在服务器本机
-完成，REST API 不提供。
-
 ### 策略
 
 | CLI | REST API |
@@ -90,53 +88,27 @@ API 平台（如 cnblogs）的凭据通过 `credentials` 对象传入
 | `policy set <scope> [id] --clear` | `POST /api/policies`，对应 mode 传 `null` 即删除该层覆盖 |
 | 读取某层覆盖 | `GET /api/policies?scope_type=article&scope_id=12` |
 
-`POST /api/policies` 的 `scope_type` 取值 global / platform / account /
-article / task；`--floor` 对应 `is_floor: true`（仅 platform/account 层且
-review_mode=always）。
-
-### 其他
-
-| 用途 | REST API |
-|---|---|
-| 平台列表 | `GET /api/platforms` |
-| 浏览器会话状态 | `GET /api/browser/sessions` |
-| 发布日志（全局） | `GET /api/logs?level=error&limit=200` |
-| 密钥校验（whoami） | `GET /api/auth/whoami` |
-
 ## curl 示例
 
+### 1. GEO 批量标题与任务创建
 ```bash
-# 1. 创建文章并置为 ready
-curl -s -X POST "$BASE_URL/api/articles" -H "$AUTH" -H "Content-Type: application/json" \
-  -d '{"title": "标题", "content": "正文", "source": "manual"}'
-# → {"id": 1, ...}
-curl -s -X PATCH "$BASE_URL/api/articles/1" -H "$AUTH" -H "Content-Type: application/json" \
-  -d '{"status": "ready"}'
+# 批量生成 30 篇标题
+curl -s -X POST "$BASE_URL/api/pipeline/geo/titles" -H "$AUTH" -H "Content-Type: application/json" \
+  -d '{"brand_keywords": ["敖行客", "AT Work", "Agent研发工作台"], "count": 30}'
 
-# 2. 创建发布任务（异步）
-curl -s -X POST "$BASE_URL/api/publish" -H "$AUTH" -H "Content-Type: application/json" \
-  -d '{"article_id": 1, "platforms": ["juejin"]}'
-# → [{task_id, status: "pending", ...}]
-
-# 3. 轮询任务状态直到终态（success/failed/cancelled/timeout）
-curl -s "$BASE_URL/api/tasks/1" -H "$AUTH"
-
-# 4. 待审核任务 → 通过
-curl -s -X POST "$BASE_URL/api/reviews/1/approve" -H "$AUTH" -H "Content-Type: application/json" \
-  -d '{"comment": ""}'
-
-# 5. 失败任务重试
-curl -s -X POST "$BASE_URL/api/tasks/1/retry" -H "$AUTH"
+# 一键生成 4 版本并创建 10 天发布排期
+curl -s -X POST "$BASE_URL/api/pipeline/geo/batch" -H "$AUTH" -H "Content-Type: application/json" \
+  -d '{"titles": ["标题1", "标题2"], "days": 10}'
 ```
 
-## 注意事项
+### 2. 公众号排版与贴图生成
+```bash
+curl -s -X POST "$BASE_URL/api/pipeline/wechat/generate" -H "$AUTH" -H "Content-Type: application/json" \
+  -d '{"hotspot": "Spotify负责人称AI想直接做完工作", "theme": "graphite", "save_to_db": true}'
+```
 
-- **异步语义**：`POST /api/publish` 立即返回任务对象，发布由 Worker
-  执行；用 `GET /api/tasks/{id}` 轮询，不要假设同步完成。
-- **AI 生成**：`publisher ai generate/revise/adapt` 没有对应 REST 端点，
-  无 CLI 环境下由 AI 自行完成内容生产，再落库为文章。
-- **浏览器登录**：`browser login` 必须在服务器本机（或容器 noVNC）完成，
-  REST API 兜底时遇到 `waiting_auth` 任务，引导用户在服务器端登录后
-  调 `POST /api/tasks/{id}/resume`。
-- **任务状态语义与处置**：与 CLI 完全一致，见主文档「任务生命周期与
-  状态语义」。
+### 3. 短视频口播文案生成
+```bash
+curl -s -X POST "$BASE_URL/api/pipeline/video/script" -H "$AUTH" -H "Content-Type: application/json" \
+  -d '{"hotspot": "AI Agent 让网络攻击自动化"}'
+```

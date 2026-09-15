@@ -8,7 +8,7 @@ export default defineConfig({
     port: 5173,
     proxy: {
       "/api": {
-        target: "http://127.0.0.1:8000",
+        target: "http://192.168.3.100:8000",
         changeOrigin: true,
         // 不做 rewrite：后端路由挂在 /api 前缀下（前端 axios baseURL 也是 /api），
         // 原样转发即可；此前剥掉前缀会被后端 SPA 兜底路由拦截返回 HTML。
