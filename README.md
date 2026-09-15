@@ -247,8 +247,9 @@ docker compose logs -f publisher
 ### 启用 MoneyPrinterTurbo 视频剪辑
 
 MoneyPrinterTurbo 是可选依赖，默认不随 ContentPilot 启动。需要自动剪辑时启用
-`video` profile；API 会在 Compose 私有网络中通过
-`http://moneyprinterturbo:8081` 被 ContentPilot 调用：
+`video` profile。两个容器共享 Compose 网络与 `./data/moneyprinterturbo` 存储；
+当前示例通过服务器地址 `http://192.168.3.100:8081` 调用 API，可在 `.env` 中用
+`MONEYPRINTERTURBO_URL` 覆盖：
 
 ```bash
 # 同时启动 ContentPilot 与 MoneyPrinterTurbo API
@@ -264,6 +265,22 @@ MoneyPrinterTurbo API 文档位于 `http://localhost:8081/docs`。正式生成�
 `pixabay_api_keys` 或 `coverr_api_keys` 中配置至少一个素材源。生成产物持久化在
 `./data/moneyprinterturbo`。ContentPilot 没有启动该 profile 时仍可正常工作，
 只有“一键触发自动剪辑”功能会因依赖不可达而返回错误。
+
+自动剪辑采用后台任务模式：页面提交后立即返回任务 ID，每 10 秒查询一次进度；
+离开或刷新页面不会中断 MoneyPrinterTurbo 中的生成任务。再次进入“内容工坊”时，
+页面会同时从浏览器缓存和 MoneyPrinterTurbo 任务列表恢复等待状态，完成后显示
+下载按钮。下载由 ContentPilot 的鉴权接口读取共享卷中的成片，例如
+`./data/moneyprinterturbo/tasks/<task_id>/.../final-1.mp4`，不会把服务器文件系统
+直接暴露给浏览器。
+
+任务与下载接口：
+
+| 接口 | 用途 |
+|---|---|
+| `POST /api/pipeline/video/render` | 创建 MoneyPrinterTurbo 后台任务 |
+| `GET /api/pipeline/video/tasks` | 获取最近的后台任务 |
+| `GET /api/pipeline/video/tasks/{task_id}` | 获取进度、状态与成片列表 |
+| `GET /api/pipeline/video/tasks/{task_id}/download?file=...` | 鉴权下载指定成片 |
 
 当前示例配置将 ContentPilot 和 MoneyPrinterTurbo 的内容生成引擎统一设置为
 `http://192.168.3.119:11434` 上的 Ollama，并使用 `qwen3.8:latest`。其中
@@ -414,6 +431,7 @@ Worker 启动时会自动把遗留的 `processing` 孤儿任务复位回 `queued
 | `PUBLISHER_BROWSER_LOGIN_TIMEOUT` | `300` | browser login 等待登录完成超时（秒） |
 | `PUBLISHER_AI_PROVIDER` / `PUBLISHER_AI_MODEL` / `PUBLISHER_AI_BASE_URL` | 见 AI 章节 | AI Provider 配置 |
 | `MONEYPRINTERTURBO_URL` | `http://192.168.3.100:8081` | 当前服务器的 MoneyPrinterTurbo API 地址；可通过 `.env` 覆盖 |
+| `MONEYPRINTERTURBO_STORAGE_DIR` | `/data/moneyprinterturbo` | Publisher 容器中可读取的 MoneyPrinterTurbo 共享存储目录 |
 
 ## Web 前端开发
 

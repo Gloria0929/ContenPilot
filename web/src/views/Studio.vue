@@ -444,7 +444,77 @@
                   >
                     提交后台自动剪辑出片
                   </el-button>
+                  <div class="render-submit-tip">
+                    提交后任务会在服务器后台继续运行，通常需要 5–15 分钟；可离开本页，返回后会自动恢复进度。
+                  </div>
                 </el-form>
+
+                <div v-if="videoTasks.length" class="render-task-panel">
+                  <div class="render-task-panel__header">
+                    <span>后台剪辑任务</span>
+                    <div class="render-task-panel__actions">
+                      <el-button
+                        link
+                        size="small"
+                        :loading="pollingVideoTasks"
+                        @click="refreshVideoTasks(true)"
+                      >
+                        刷新状态
+                      </el-button>
+                      <el-button link size="small" @click="clearFinishedVideoTasks">
+                        清理已结束
+                      </el-button>
+                    </div>
+                  </div>
+
+                  <div
+                    v-for="task in videoTasks"
+                    :key="task.task_id"
+                    class="render-task"
+                  >
+                    <div class="render-task__topline">
+                      <div class="render-task__identity">
+                        <span class="render-task__title">{{ task.subject || "自动剪辑任务" }}</span>
+                        <span class="render-task__id">{{ task.task_id }}</span>
+                      </div>
+                      <el-tag :type="videoTaskTagType(task)" size="small">
+                        {{ videoTaskStatusText(task) }}
+                      </el-tag>
+                    </div>
+
+                    <el-progress
+                      :percentage="task.progress || 0"
+                      :status="task.status === 'failed' ? 'exception' : task.status === 'completed' ? 'success' : undefined"
+                      :stroke-width="8"
+                    />
+
+                    <div class="render-task__meta">
+                      <span>{{ formatVideoTaskTime(task) }}</span>
+                      <span v-if="isVideoTaskActive(task)">服务器后台处理中，可安全关闭页面</span>
+                    </div>
+
+                    <div v-if="task.error || task.last_error" class="render-task__error">
+                      {{ task.error || task.last_error }}
+                    </div>
+
+                    <div v-if="task.status === 'completed'" class="render-task__outputs">
+                      <template v-if="task.outputs?.length">
+                        <el-button
+                          v-for="output in task.outputs"
+                          :key="output.download_url"
+                          type="primary"
+                          size="small"
+                          @click="downloadVideoOutput(output.download_url)"
+                        >
+                          下载 {{ output.name }}
+                        </el-button>
+                      </template>
+                      <span v-else class="render-task__pending-file">
+                        任务已完成，正在等待成片写入共享目录…
+                      </span>
+                    </div>
+                  </div>
+                </div>
               </div>
             </el-card>
           </el-col>
@@ -548,7 +618,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, onMounted } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { ElMessage } from "element-plus";
 import api from "../api";
 
@@ -787,12 +857,25 @@ watch(videoResult, (val) => safeSetJSON("cp_studio_video_result", val), {
   deep: true,
 });
 
-const turboUrl = ref(
-  localStorage
+function initialTurboUrl() {
+  const serverDefault = `http://${window.location.hostname}:8081`;
+  const stored = localStorage
     .getItem("cp_studio_turbo_url")
     ?.replace(":8501", ":8081")
-    .replace(":8080", ":8081") || "http://localhost:8081",
-);
+    .replace(":8080", ":8081");
+  if (!stored) return serverDefault;
+  try {
+    const parsed = new URL(stored);
+    if (["localhost", "127.0.0.1", "::1", "moneyprinterturbo"].includes(parsed.hostname)) {
+      return serverDefault;
+    }
+  } catch {
+    return serverDefault;
+  }
+  return stored;
+}
+
+const turboUrl = ref(initialTurboUrl());
 watch(turboUrl, (val) => localStorage.setItem("cp_studio_turbo_url", val));
 
 const videoAspect = ref(
@@ -829,6 +912,136 @@ async function handleGenerateVideo() {
 }
 
 const renderingVideo = ref(false);
+const pollingVideoTasks = ref(false);
+const videoTasks = ref<any[]>(safeGetJSON("cp_studio_video_tasks", []));
+watch(videoTasks, (value) => safeSetJSON("cp_studio_video_tasks", value), {
+  deep: true,
+});
+
+const activeVideoTasks = computed(() =>
+  videoTasks.value.filter((task) => isVideoTaskActive(task)),
+);
+let videoTaskPollTimer: ReturnType<typeof setInterval> | null = null;
+
+function isVideoTaskActive(task: any) {
+  if (task?.status === "failed") return false;
+  // MoneyPrinterTurbo 可能先报告完成，再把成片落盘到共享卷；此时继续轮询，
+  // 直到下载接口确实能看到文件，避免页面永久停在“等待成片写入”。
+  if (task?.status === "completed") return !task.download_ready;
+  return true;
+}
+
+function upsertVideoTask(task: any) {
+  if (!task?.task_id) return;
+  const existing = videoTasks.value.find((item) => item.task_id === task.task_id);
+  const merged = {
+    ...existing,
+    ...task,
+    subject: task.subject || existing?.subject || videoResult.value?.title || "",
+    submitted_at: existing?.submitted_at || task.submitted_at || new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  };
+  videoTasks.value = [
+    merged,
+    ...videoTasks.value.filter((item) => item.task_id !== task.task_id),
+  ].slice(0, 30);
+}
+
+function videoTaskStatusText(task: any) {
+  if (task.status === "completed") return "已完成";
+  if (task.status === "failed") return "生成失败";
+  if (task.status === "unavailable") return "等待服务恢复";
+  if ((task.progress || 0) > 0) return `处理中 ${task.progress}%`;
+  return "已提交";
+}
+
+function videoTaskTagType(task: any) {
+  if (task.status === "completed") return "success";
+  if (task.status === "failed") return "danger";
+  if (task.status === "unavailable") return "warning";
+  return "primary";
+}
+
+function formatVideoTaskTime(task: any) {
+  const value = task.updated_at || task.submitted_at;
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return `更新于 ${date.toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" })}`;
+}
+
+async function refreshVideoTask(task: any, notify = false) {
+  const previousStatus = task.status;
+  try {
+    const response = await api.get(`/pipeline/video/tasks/${task.task_id}`, {
+      params: { money_printer_url: turboUrl.value },
+      timeout: 20000,
+    });
+    upsertVideoTask({ ...response.data, last_error: "" });
+    if (notify && response.data.status === "completed") {
+      ElMessage.success("视频已生成，可以下载");
+    } else if (previousStatus !== "completed" && response.data.status === "completed") {
+      ElMessage.success(`剪辑任务 ${task.task_id.slice(0, 8)} 已完成`);
+    } else if (notify) {
+      ElMessage.info(`任务进度：${response.data.progress || 0}%`);
+    }
+  } catch (err: any) {
+    upsertVideoTask({
+      task_id: task.task_id,
+      status: "unavailable",
+      last_error: err.response?.data?.detail || "暂时无法查询任务，稍后会自动重试",
+    });
+    if (notify) {
+      ElMessage.warning(err.response?.data?.detail || "暂时无法查询任务状态");
+    }
+  }
+}
+
+async function refreshVideoTasks(notify = false) {
+  if (pollingVideoTasks.value) return;
+  pollingVideoTasks.value = true;
+  try {
+    const tasks = notify ? videoTasks.value : activeVideoTasks.value;
+    await Promise.all(tasks.map((task) => refreshVideoTask(task, false)));
+    if (notify) ElMessage.success("任务状态已刷新");
+  } finally {
+    pollingVideoTasks.value = false;
+  }
+}
+
+async function loadServerVideoTasks() {
+  try {
+    const response = await api.get("/pipeline/video/tasks", {
+      params: { page: 1, page_size: 20, money_printer_url: turboUrl.value },
+      timeout: 20000,
+    });
+    for (const task of response.data?.tasks || []) upsertVideoTask(task);
+  } catch {
+    // 保留浏览器已缓存的任务，后台服务恢复后轮询会继续。
+  }
+}
+
+function startVideoTaskPolling() {
+  if (videoTaskPollTimer) return;
+  videoTaskPollTimer = setInterval(() => {
+    if (activeVideoTasks.value.length) refreshVideoTasks(false);
+  }, 10000);
+}
+
+function clearFinishedVideoTasks() {
+  videoTasks.value = videoTasks.value.filter(
+    (task) => !["completed", "failed"].includes(task?.status),
+  );
+}
+
+function downloadVideoOutput(url: string) {
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = "";
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+}
 
 async function handleRenderVideo() {
   if (!videoResult.value?.script) return;
@@ -843,7 +1056,22 @@ async function handleRenderVideo() {
     if (res.data?.error) {
       ElMessage.warning(res.data.message || res.data.error);
     } else {
-      ElMessage.success("剪辑任务已成功提交至 MoneyPrinterTurbo 服务！");
+      const taskData = res.data?.data || res.data;
+      const taskId = taskData?.task_id;
+      if (!taskId) {
+        ElMessage.warning("MoneyPrinterTurbo 未返回任务 ID，无法跟踪进度");
+        return;
+      }
+      upsertVideoTask({
+        task_id: taskId,
+        subject: videoResult.value.title,
+        state: 4,
+        status: "processing",
+        progress: 0,
+        outputs: [],
+      });
+      startVideoTaskPolling();
+      ElMessage.success("剪辑任务已提交到后台，可离开本页，完成后回来下载");
     }
   } catch (err: any) {
     ElMessage.error(err.response?.data?.detail || "提交视频剪辑任务失败");
@@ -858,6 +1086,14 @@ onMounted(() => {
   if (!hotspots.value || hotspots.value.length === 0) {
     loadHotspots(true);
   }
+  loadServerVideoTasks().finally(() => {
+    refreshVideoTasks(false);
+    startVideoTaskPolling();
+  });
+});
+
+onBeforeUnmount(() => {
+  if (videoTaskPollTimer) clearInterval(videoTaskPollTimer);
 });
 </script>
 
@@ -1089,6 +1325,105 @@ onMounted(() => {
   font-weight: 600;
   color: #1e293b;
   margin-bottom: 12px;
+}
+
+.render-submit-tip {
+  margin-top: 10px;
+  color: #64748b;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.render-task-panel {
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid #e2e8f0;
+}
+
+.render-task-panel__header,
+.render-task__topline,
+.render-task__meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.render-task-panel__header {
+  margin-bottom: 10px;
+  color: #334155;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.render-task-panel__actions {
+  display: flex;
+  align-items: center;
+}
+
+.render-task {
+  padding: 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.render-task + .render-task {
+  margin-top: 10px;
+}
+
+.render-task__identity {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.render-task__title {
+  color: #0f172a;
+  font-size: 13px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.render-task__id {
+  color: #94a3b8;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 10px;
+}
+
+.render-task :deep(.el-progress) {
+  margin-top: 10px;
+}
+
+.render-task__meta {
+  margin-top: 7px;
+  color: #94a3b8;
+  font-size: 11px;
+}
+
+.render-task__error {
+  margin-top: 8px;
+  padding: 7px 9px;
+  border-radius: 5px;
+  background: #fef2f2;
+  color: #b91c1c;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.render-task__outputs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.render-task__pending-file {
+  color: #64748b;
+  font-size: 12px;
 }
 
 .video-result-content {

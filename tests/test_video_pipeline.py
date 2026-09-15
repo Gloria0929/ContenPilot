@@ -69,3 +69,54 @@ async def test_moneyprinterturbo_create_video_uses_v1_api(monkeypatch):
     )
 
     assert result["data"]["task_id"] == "task-123"
+
+
+@pytest.mark.asyncio
+async def test_moneyprinterturbo_get_task_uses_v1_api(monkeypatch):
+    task_id = "2f629337-0db4-46d2-90a3-a911943d9016"
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.method == "GET"
+        assert request.url == httpx.URL(
+            f"http://moneyprinterturbo:8081/api/v1/tasks/{task_id}"
+        )
+        return httpx.Response(
+            200,
+            json={
+                "status": 200,
+                "message": "success",
+                "data": {"task_id": task_id, "state": 4, "progress": 40},
+            },
+        )
+
+    _mock_async_client(monkeypatch, handler)
+    client = video_pipeline.MoneyPrinterTurboClient(
+        "http://moneyprinterturbo:8081"
+    )
+
+    result = await client.get_video_task(task_id)
+
+    assert result["data"]["state"] == 4
+    assert result["data"]["progress"] == 40
+
+
+@pytest.mark.asyncio
+async def test_moneyprinterturbo_lists_background_tasks(monkeypatch):
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.method == "GET"
+        assert request.url == httpx.URL(
+            "http://moneyprinterturbo:8081/api/v1/tasks?page=2&page_size=10"
+        )
+        return httpx.Response(
+            200,
+            json={"status": 200, "data": {"tasks": [], "total": 0}},
+        )
+
+    _mock_async_client(monkeypatch, handler)
+    client = video_pipeline.MoneyPrinterTurboClient(
+        "http://moneyprinterturbo:8081"
+    )
+
+    result = await client.list_video_tasks(page=2, page_size=10)
+
+    assert result["data"]["tasks"] == []

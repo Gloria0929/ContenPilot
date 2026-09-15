@@ -1,11 +1,14 @@
 """API 路由（文档第 60 节）。除 /auth/login 外全部要求鉴权。"""
 from __future__ import annotations
 
+import os
+from pathlib import Path
 from typing import Any
-from urllib.parse import urlparse
+from urllib.parse import unquote, urlencode, urlparse
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Request
-from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
@@ -896,28 +899,171 @@ class VideoRenderIn(BaseModel):
     money_printer_url: str | None = None
 
 
-@router.post("/pipeline/video/render")
-async def api_render_video(
-    payload: VideoRenderIn,
-    auth=Depends(get_current_auth),
-):
-    import os
-    from ..pipeline import MoneyPrinterTurboClient
+_VIDEO_SUFFIXES = {".mp4", ".webm", ".mov", ".mkv"}
 
+
+def _moneyprinter_url(request_url: str | None = None) -> str:
+    """解析后端实际使用的 MoneyPrinterTurbo 地址。"""
     env_url = (os.environ.get("MONEYPRINTERTURBO_URL") or "").strip()
-    target_url = (payload.money_printer_url or "").strip() or env_url or "http://localhost:8081"
-
-    # 请求由后端容器发出。浏览器缓存中的回环地址或旧 Compose 服务名
-    # 对宿主机部署不可用，此时使用服务端环境变量配置。
+    target_url = (request_url or "").strip() or env_url or "http://localhost:8081"
     if env_url and urlparse(target_url).hostname in {
         "localhost",
         "127.0.0.1",
         "::1",
         "moneyprinterturbo",
     }:
-        target_url = env_url
+        return env_url.rstrip("/")
+    return target_url.rstrip("/")
 
-    client = MoneyPrinterTurboClient(base_url=target_url)
+
+def _video_task_dir(task_id: str) -> Path:
+    """返回共享存储中的任务目录，并拒绝非 UUID 任务标识。"""
+    try:
+        normalized_id = str(UUID(task_id))
+    except (ValueError, AttributeError) as exc:
+        raise HTTPException(status_code=400, detail="无效的视频任务 ID") from exc
+    storage_root = Path(
+        os.environ.get("MONEYPRINTERTURBO_STORAGE_DIR", "/data/moneyprinterturbo")
+    ).resolve()
+    return storage_root / "tasks" / normalized_id
+
+
+def _advertised_output_paths(task_id: str, task_data: dict[str, Any]) -> list[str]:
+    """把上游返回的 /tasks/<id>/... URL 转成任务目录内相对路径。"""
+    results: list[str] = []
+    for field in ("combined_videos", "videos"):
+        values = task_data.get(field) or []
+        if not isinstance(values, list):
+            continue
+        for value in values:
+            if not isinstance(value, str):
+                continue
+            parts = [unquote(part) for part in Path(urlparse(value).path).parts]
+            try:
+                task_index = parts.index(task_id)
+            except ValueError:
+                continue
+            relative = "/".join(parts[task_index + 1:])
+            if relative and relative not in results:
+                results.append(relative)
+    return results
+
+
+def _task_outputs(task_id: str, task_data: dict[str, Any]) -> list[dict[str, Any]]:
+    """列出已完成的视频产物，路径始终限制在当前任务目录内。"""
+    task_dir = _video_task_dir(task_id)
+    if not task_dir.is_dir():
+        return []
+
+    candidates: list[Path] = []
+    for relative in _advertised_output_paths(task_id, task_data):
+        candidate = (task_dir / relative).resolve()
+        if candidate.is_relative_to(task_dir.resolve()) and candidate.is_file():
+            candidates.append(candidate)
+
+    if not candidates:
+        all_videos = [
+            path
+            for path in task_dir.rglob("*")
+            if path.is_file() and path.suffix.lower() in _VIDEO_SUFFIXES
+        ]
+        preferred = [
+            path
+            for path in all_videos
+            if path.name.lower().startswith(("final", "combined"))
+        ]
+        candidates = preferred or all_videos
+
+    outputs: list[dict[str, Any]] = []
+    for candidate in sorted(set(candidates), key=lambda path: path.name):
+        relative = candidate.relative_to(task_dir).as_posix()
+        outputs.append(
+            {
+                "name": candidate.name,
+                "file": relative,
+                "size": candidate.stat().st_size,
+                "download_url": (
+                    f"/api/pipeline/video/tasks/{task_id}/download?"
+                    f"{urlencode({'file': relative})}"
+                ),
+            }
+        )
+    return outputs
+
+
+def _normalize_video_task(task_data: dict[str, Any]) -> dict[str, Any]:
+    task_id = str(task_data.get("task_id") or "")
+    state = int(task_data.get("state") or 0)
+    progress = max(0, min(100, int(task_data.get("progress") or 0)))
+    status = "completed" if state == 1 else "failed" if state == -1 else "processing"
+    outputs = _task_outputs(task_id, task_data) if task_id and state == 1 else []
+    params = task_data.get("params") if isinstance(task_data.get("params"), dict) else {}
+    return {
+        "task_id": task_id,
+        "state": state,
+        "status": status,
+        "progress": 100 if status == "completed" else progress,
+        "subject": params.get("video_subject") or "",
+        "failed_stage": task_data.get("failed_stage"),
+        "error": task_data.get("error"),
+        "outputs": outputs,
+        "download_ready": status == "completed" and bool(outputs),
+    }
+
+
+def _stored_completed_video_tasks(limit: int = 20) -> list[dict[str, Any]]:
+    """从共享卷恢复上游重启后遗留的已完成任务。"""
+    storage_root = Path(
+        os.environ.get("MONEYPRINTERTURBO_STORAGE_DIR", "/data/moneyprinterturbo")
+    ).resolve()
+    tasks_root = storage_root / "tasks"
+    if not tasks_root.is_dir():
+        return []
+
+    task_dirs = sorted(
+        (path for path in tasks_root.iterdir() if path.is_dir()),
+        key=lambda path: path.stat().st_mtime,
+        reverse=True,
+    )
+    recovered: list[dict[str, Any]] = []
+    for task_dir in task_dirs:
+        try:
+            task_id = str(UUID(task_dir.name))
+        except ValueError:
+            continue
+        outputs = _task_outputs(task_id, {})
+        # 任务目录中可能存在素材或中间视频，只把明确的最终成片恢复为完成任务。
+        if not any(
+            output["name"].lower().startswith(("final", "combined"))
+            for output in outputs
+        ):
+            continue
+        recovered.append(
+            {
+                "task_id": task_id,
+                "state": 1,
+                "status": "completed",
+                "progress": 100,
+                "subject": "",
+                "failed_stage": None,
+                "error": None,
+                "outputs": outputs,
+                "download_ready": True,
+            }
+        )
+        if len(recovered) >= limit:
+            break
+    return recovered
+
+
+@router.post("/pipeline/video/render")
+async def api_render_video(
+    payload: VideoRenderIn,
+    auth=Depends(get_current_auth),
+):
+    from ..pipeline import MoneyPrinterTurboClient
+
+    client = MoneyPrinterTurboClient(base_url=_moneyprinter_url(payload.money_printer_url))
     res = await client.create_video_task(
         video_script=payload.video_script,
         video_subject=payload.video_subject,
@@ -926,6 +1072,130 @@ async def api_render_video(
     )
 
     return res
+
+
+@router.get("/pipeline/video/tasks")
+async def api_list_video_tasks(
+    page: int = 1,
+    page_size: int = 20,
+    money_printer_url: str | None = None,
+    auth=Depends(get_current_auth),
+):
+    """读取后台视频任务，页面刷新后仍可恢复等待状态。"""
+    from ..pipeline import MoneyPrinterTurboClient
+
+    client = MoneyPrinterTurboClient(base_url=_moneyprinter_url(money_printer_url))
+    response = await client.list_video_tasks(
+        page=max(1, page),
+        page_size=max(1, min(100, page_size)),
+    )
+    stored_tasks = _stored_completed_video_tasks(limit=max(1, min(100, page_size)))
+    if response.get("error"):
+        if stored_tasks:
+            return {
+                "tasks": stored_tasks,
+                "total": len(stored_tasks),
+                "upstream_available": False,
+            }
+        raise HTTPException(status_code=502, detail=(
+            response.get("message") or response.get("detail") or response["error"]
+        ))
+    data = response.get("data") or {}
+    tasks = data.get("tasks") if isinstance(data, dict) else []
+    normalized_tasks = [
+        _normalize_video_task(task)
+        for task in tasks or []
+        if isinstance(task, dict) and task.get("task_id")
+    ]
+    known_ids = {task["task_id"] for task in normalized_tasks}
+    normalized_tasks.extend(
+        task for task in stored_tasks if task["task_id"] not in known_ids
+    )
+    return {
+        "tasks": normalized_tasks,
+        "total": max(
+            len(normalized_tasks),
+            int(data.get("total") or 0) if isinstance(data, dict) else 0,
+        ),
+        "upstream_available": True,
+    }
+
+
+@router.get("/pipeline/video/tasks/{task_id}")
+async def api_get_video_task(
+    task_id: str,
+    money_printer_url: str | None = None,
+    auth=Depends(get_current_auth),
+):
+    """查询单个后台视频任务的进度及下载信息。"""
+    from ..pipeline import MoneyPrinterTurboClient
+
+    # 查询前先校验任务标识，避免把不可信路径发送给上游。
+    _video_task_dir(task_id)
+    client = MoneyPrinterTurboClient(base_url=_moneyprinter_url(money_printer_url))
+    response = await client.get_video_task(task_id)
+    if response.get("error"):
+        # 上游内存状态丢失但磁盘成片仍存在时，允许恢复下载。
+        recovered = _task_outputs(task_id, {})
+        if recovered:
+            return {
+                "task_id": task_id,
+                "state": 1,
+                "status": "completed",
+                "progress": 100,
+                "subject": "",
+                "failed_stage": None,
+                "error": None,
+                "outputs": recovered,
+                "download_ready": True,
+            }
+        raise HTTPException(
+            status_code=502,
+            detail=response.get("message") or response.get("detail") or response["error"],
+        )
+    data = response.get("data") or {}
+    if not isinstance(data, dict):
+        raise HTTPException(status_code=502, detail="MoneyPrinterTurbo 返回了无效任务结构")
+    return _normalize_video_task(data)
+
+
+@router.get("/pipeline/video/tasks/{task_id}/download")
+def api_download_video_task(
+    task_id: str,
+    file: str | None = None,
+    auth=Depends(get_current_auth),
+):
+    """从共享存储下载生成的视频，禁止访问任务目录以外的文件。"""
+    task_dir = _video_task_dir(task_id).resolve()
+    if not task_dir.is_dir():
+        raise HTTPException(status_code=404, detail="视频任务目录不存在")
+
+    if file:
+        candidate = (task_dir / unquote(file)).resolve()
+        if not candidate.is_relative_to(task_dir):
+            raise HTTPException(status_code=403, detail="禁止访问任务目录以外的文件")
+        candidates = [candidate]
+    else:
+        outputs = _task_outputs(task_id, {})
+        candidates = [task_dir / output["file"] for output in outputs]
+
+    video = next(
+        (
+            path
+            for path in candidates
+            if path.is_file()
+            and path.suffix.lower() in _VIDEO_SUFFIXES
+            and path.stat().st_size > 0
+        ),
+        None,
+    )
+    if video is None:
+        raise HTTPException(status_code=404, detail="视频尚未生成或文件不存在")
+    return FileResponse(
+        path=video,
+        filename=video.name,
+        media_type="application/octet-stream",
+    )
 
 
 class OllamaPingIn(BaseModel):

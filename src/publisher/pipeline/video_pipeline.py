@@ -131,3 +131,44 @@ class MoneyPrinterTurboClient:
                 "error": "MoneyPrinterTurbo service unreachable",
                 "message": f"请确保 MoneyPrinterTurbo API 已启动（默认端口 8081），错误详情：{str(e)}",
             }
+
+    async def get_video_task(self, task_id: str) -> dict[str, Any]:
+        """查询异步视频任务状态。"""
+        try:
+            async with httpx.AsyncClient(timeout=15) as client:
+                resp = await client.get(f"{self.base_url}/api/v1/tasks/{task_id}")
+                if resp.status_code == 200:
+                    return resp.json()
+                return {
+                    "error": f"API returned {resp.status_code}",
+                    "detail": resp.text,
+                }
+        except Exception as e:
+            return {
+                "error": "MoneyPrinterTurbo service unreachable",
+                "message": f"查询视频任务失败：{str(e)}",
+            }
+
+    async def list_video_tasks(
+        self,
+        page: int = 1,
+        page_size: int = 20,
+    ) -> dict[str, Any]:
+        """读取 MoneyPrinterTurbo 后台任务，供页面刷新后恢复任务列表。"""
+        try:
+            async with httpx.AsyncClient(timeout=15) as client:
+                resp = await client.get(
+                    f"{self.base_url}/api/v1/tasks",
+                    params={"page": page, "page_size": page_size},
+                )
+                if resp.status_code == 200:
+                    return resp.json()
+                return {
+                    "error": f"API returned {resp.status_code}",
+                    "detail": resp.text,
+                }
+        except Exception as e:
+            return {
+                "error": "MoneyPrinterTurbo service unreachable",
+                "message": f"读取视频任务列表失败：{str(e)}",
+            }

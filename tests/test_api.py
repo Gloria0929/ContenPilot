@@ -112,6 +112,94 @@ def test_video_render_maps_old_service_name_to_host_service(client, monkeypatch)
     assert requested_urls == ["http://192.168.3.100:8081"]
 
 
+def test_video_task_status_and_authenticated_download(client, monkeypatch, tmp_path):
+    """完成任务应返回共享存储中的安全下载链接。"""
+    from publisher.pipeline import MoneyPrinterTurboClient
+
+    task_id = "2f629337-0db4-46d2-90a3-a911943d9016"
+    storage = tmp_path / "moneyprinterturbo"
+    output_dir = storage / "tasks" / task_id / "output"
+    output_dir.mkdir(parents=True)
+    video_file = output_dir / "final-1.mp4"
+    video_file.write_bytes(b"test-video")
+
+    async def fake_get_video_task(self, requested_task_id):
+        assert requested_task_id == task_id
+        return {
+            "status": 200,
+            "data": {
+                "task_id": task_id,
+                "state": 1,
+                "progress": 100,
+                "videos": [f"/tasks/{task_id}/output/final-1.mp4"],
+            },
+        }
+
+    monkeypatch.setenv("MONEYPRINTERTURBO_STORAGE_DIR", str(storage))
+    monkeypatch.setattr(
+        MoneyPrinterTurboClient, "get_video_task", fake_get_video_task
+    )
+    _login(client)
+
+    status_response = client.get(f"/api/pipeline/video/tasks/{task_id}")
+
+    assert status_response.status_code == 200
+    task = status_response.json()
+    assert task["status"] == "completed"
+    assert task["download_ready"] is True
+    assert task["outputs"][0]["name"] == "final-1.mp4"
+
+    download_response = client.get(task["outputs"][0]["download_url"])
+    assert download_response.status_code == 200
+    assert download_response.content == b"test-video"
+    assert "final-1.mp4" in download_response.headers["content-disposition"]
+
+
+def test_video_download_rejects_path_traversal(client, monkeypatch, tmp_path):
+    task_id = "2f629337-0db4-46d2-90a3-a911943d9016"
+    storage = tmp_path / "moneyprinterturbo"
+    (storage / "tasks" / task_id).mkdir(parents=True)
+    monkeypatch.setenv("MONEYPRINTERTURBO_STORAGE_DIR", str(storage))
+    _login(client)
+
+    response = client.get(
+        f"/api/pipeline/video/tasks/{task_id}/download",
+        params={"file": "../../outside.mp4"},
+    )
+
+    assert response.status_code == 403
+
+
+def test_video_task_list_recovers_completed_files_when_upstream_is_unavailable(
+    client, monkeypatch, tmp_path
+):
+    """MPT 重启丢失内存任务后，仍应从共享卷恢复已完成成片。"""
+    from publisher.pipeline import MoneyPrinterTurboClient
+
+    task_id = "2f629337-0db4-46d2-90a3-a911943d9016"
+    storage = tmp_path / "moneyprinterturbo"
+    output_dir = storage / "tasks" / task_id / "output"
+    output_dir.mkdir(parents=True)
+    (output_dir / "final-1.mp4").write_bytes(b"recovered-video")
+
+    async def fake_list_video_tasks(self, page=1, page_size=20):
+        return {"error": "MoneyPrinterTurbo service unreachable"}
+
+    monkeypatch.setenv("MONEYPRINTERTURBO_STORAGE_DIR", str(storage))
+    monkeypatch.setattr(
+        MoneyPrinterTurboClient, "list_video_tasks", fake_list_video_tasks
+    )
+    _login(client)
+
+    response = client.get("/api/pipeline/video/tasks")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["upstream_available"] is False
+    assert body["tasks"][0]["task_id"] == task_id
+    assert body["tasks"][0]["download_ready"] is True
+
+
 def test_full_publish_flow_with_floor(client):
     _login(client)
     # 创建文章

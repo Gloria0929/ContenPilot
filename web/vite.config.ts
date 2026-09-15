@@ -10,7 +10,7 @@ export default defineConfig({
       "/api": {
         // 默认转发到本地后端（publisher server --port 8001）；
         // 远程模式启动：API_PROXY_TARGET=http://192.168.x.x:8000 npm run dev
-        target: "http://127.0.0.1:8000",
+        target: "http://192.168.3.100:8000",
         changeOrigin: true,
         // 不做 rewrite：后端路由挂在 /api 前缀下（前端 axios baseURL 也是 /api），
         // 原样转发即可；此前剥掉前缀会被后端 SPA 兜底路由拦截返回 HTML。

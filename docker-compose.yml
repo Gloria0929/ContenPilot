@@ -21,6 +21,8 @@ services:
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
       # MoneyPrinterTurbo 运行在服务器宿主机，可通过 .env 覆盖。
       - MONEYPRINTERTURBO_URL=${MONEYPRINTERTURBO_URL:-http://192.168.3.100:8081}
+      # 与 MoneyPrinterTurbo 的 storage bind mount 对应，供成片下载代理读取。
+      - MONEYPRINTERTURBO_STORAGE_DIR=/data/moneyprinterturbo
       # 挂载源码优先加载
       - PYTHONPATH=/app/src
     volumes:
