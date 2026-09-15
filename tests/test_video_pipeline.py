@@ -22,13 +22,13 @@ def _mock_async_client(monkeypatch, handler):
 async def test_moneyprinterturbo_health_uses_ping(monkeypatch):
     def handler(request: httpx.Request) -> httpx.Response:
         assert request.method == "GET"
-        assert request.url == httpx.URL("http://moneyprinterturbo:8080/ping")
+        assert request.url == httpx.URL("http://moneyprinterturbo:8081/ping")
         return httpx.Response(200, text='"pong"')
 
     _mock_async_client(monkeypatch, handler)
 
     client = video_pipeline.MoneyPrinterTurboClient(
-        "http://moneyprinterturbo:8080/"
+        "http://moneyprinterturbo:8081/"
     )
     assert await client.check_health() is True
 
@@ -38,7 +38,7 @@ async def test_moneyprinterturbo_create_video_uses_v1_api(monkeypatch):
     def handler(request: httpx.Request) -> httpx.Response:
         assert request.method == "POST"
         assert request.url == httpx.URL(
-            "http://moneyprinterturbo:8080/api/v1/videos"
+            "http://moneyprinterturbo:8081/api/v1/videos"
         )
         assert json.loads(request.content) == {
             "video_subject": "测试主题",
@@ -59,7 +59,7 @@ async def test_moneyprinterturbo_create_video_uses_v1_api(monkeypatch):
     _mock_async_client(monkeypatch, handler)
 
     client = video_pipeline.MoneyPrinterTurboClient(
-        "http://moneyprinterturbo:8080"
+        "http://moneyprinterturbo:8081"
     )
     result = await client.create_video_task(
         video_script="测试文案",

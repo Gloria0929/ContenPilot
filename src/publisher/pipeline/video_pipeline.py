@@ -94,7 +94,7 @@ class MoneyPrinterTurboClient:
     支持将口播文本直接发送至本地或容器内的 MoneyPrinterTurbo 服务，自动化合成短视频。
     """
 
-    def __init__(self, base_url: str = "http://localhost:8080"):
+    def __init__(self, base_url: str = "http://localhost:8081"):
         self.base_url = base_url.rstrip("/")
 
     async def check_health(self) -> bool:
@@ -129,5 +129,5 @@ class MoneyPrinterTurboClient:
         except Exception as e:
             return {
                 "error": "MoneyPrinterTurbo service unreachable",
-                "message": f"请确保 MoneyPrinterTurbo API 已启动（默认端口 8080），错误详情：{str(e)}",
+                "message": f"请确保 MoneyPrinterTurbo API 已启动（默认端口 8081），错误详情：{str(e)}",
             }

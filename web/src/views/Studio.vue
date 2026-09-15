@@ -427,7 +427,7 @@
                   <el-form-item label="MoneyPrinterTurbo 服务地址">
                     <el-input
                       v-model="turboUrl"
-                      placeholder="http://localhost:8080"
+                      placeholder="http://localhost:8081"
                     />
                   </el-form-item>
                   <el-form-item label="视频比例">
@@ -788,8 +788,10 @@ watch(videoResult, (val) => safeSetJSON("cp_studio_video_result", val), {
 });
 
 const turboUrl = ref(
-  localStorage.getItem("cp_studio_turbo_url")?.replace(":8501", ":8080") ||
-    "http://localhost:8080",
+  localStorage
+    .getItem("cp_studio_turbo_url")
+    ?.replace(":8501", ":8081")
+    .replace(":8080", ":8081") || "http://localhost:8081",
 );
 watch(turboUrl, (val) => localStorage.setItem("cp_studio_turbo_url", val));
 

@@ -240,11 +240,15 @@ docker compose logs -f publisher
 
 浏览器访问 `http://localhost:8000`，默认账号 `admin / admin`；人工接管（扫码/验证码）入口在 `http://localhost:6080`。
 
+服务器宿主机不需要预先生成 `web/dist`；前端由 Dockerfile 的 Node 构建阶段生成并
+内置到 Publisher 镜像。不要把宿主机空的 `./web/dist` 挂载到容器，否则会覆盖
+镜像内前端并导致访问根路径时返回 `{"detail":"Not Found"}`。
+
 ### 启用 MoneyPrinterTurbo 视频剪辑
 
 MoneyPrinterTurbo 是可选依赖，默认不随 ContentPilot 启动。需要自动剪辑时启用
 `video` profile；API 会在 Compose 私有网络中通过
-`http://moneyprinterturbo:8080` 被 ContentPilot 调用：
+`http://moneyprinterturbo:8081` 被 ContentPilot 调用：
 
 ```bash
 # 同时启动 ContentPilot 与 MoneyPrinterTurbo API
@@ -255,7 +259,7 @@ docker compose up -d --build publisher
 docker compose --profile video up -d moneyprinterturbo
 ```
 
-MoneyPrinterTurbo API 文档位于 `http://localhost:8080/docs`。正式生成视频前，
+MoneyPrinterTurbo API 文档位于 `http://localhost:8081/docs`。正式生成视频前，
 请在 `docker/moneyprinterturbo.config.toml` 的 `pexels_api_keys`、
 `pixabay_api_keys` 或 `coverr_api_keys` 中配置至少一个素材源。生成产物持久化在
 `./data/moneyprinterturbo`。ContentPilot 没有启动该 profile 时仍可正常工作，
@@ -315,7 +319,7 @@ docker compose exec publisher publisher browser login csdn -a csdn_default
 |---|---|
 | 8000 | Web API + Web 管理台 |
 | 6080 | noVNC（浏览器人工接管，如扫码登录） |
-| 8080 | MoneyPrinterTurbo API（启用 `video` profile 时，仅映射到宿主机回环地址） |
+| 8081 | MoneyPrinterTurbo API（宿主机和容器内均使用 `8081`，启用 `video` profile 时生效） |
 
 数据卷（宿主机持久化）：
 
@@ -404,7 +408,7 @@ Worker 启动时会自动把遗留的 `processing` 孤儿任务复位回 `queued
 | `PUBLISHER_HEADLESS` | `true` | Playwright 无头模式 |
 | `PUBLISHER_BROWSER_LOGIN_TIMEOUT` | `300` | browser login 等待登录完成超时（秒） |
 | `PUBLISHER_AI_PROVIDER` / `PUBLISHER_AI_MODEL` / `PUBLISHER_AI_BASE_URL` | 见 AI 章节 | AI Provider 配置 |
-| `MONEYPRINTERTURBO_URL` | `http://moneyprinterturbo:8080` | MoneyPrinterTurbo API 地址；同一 Compose 使用服务名，外部部署时可通过 `.env` 覆盖 |
+| `MONEYPRINTERTURBO_URL` | `http://moneyprinterturbo:8081` | MoneyPrinterTurbo API 地址；同一 Compose 使用服务名，外部部署时可通过 `.env` 覆盖 |
 
 ## Web 前端开发
 

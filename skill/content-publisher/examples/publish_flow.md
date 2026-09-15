@@ -90,6 +90,6 @@ curl -s -X POST "$BASE_URL/api/pipeline/video/render" -H "$AUTH" -H "Content-Typ
     "video_script": "生成的口播文案...",
     "video_subject": "AI黑客自动化攻击时代来临",
     "video_aspect_ratio": "9:16",
-    "money_printer_url": "http://localhost:8080"
+    "money_printer_url": "http://localhost:8081"
   }'
 ```

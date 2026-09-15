@@ -18,11 +18,6 @@ services:
       - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
       # MoneyPrinterTurbo API 地址（可选依赖，可通过 .env 覆盖）
-      # 常见取值：
-      #   同一 compose 网络：http://moneyprinterturbo:8081
-      #   同机但独立容器：http://host.docker.internal:8081
-      #   局域网另一台机器：http://192.168.x.x:8081
-      #   远程/公网：https://your-domain.com
       - MONEYPRINTERTURBO_URL=${MONEYPRINTERTURBO_URL:-http://moneyprinterturbo:8081}
       # 挂载源码优先加载
       - PYTHONPATH=/app/src
@@ -41,7 +36,7 @@ services:
     container_name: moneyprinterturbo
     command: ["python3", "main.py"]
     ports:
-      - "127.0.0.1:8081:8080"   # API 文档：http://localhost:8080/docs
+      - "8081:8081"   # API 文档：http://<服务器IP>:8081/docs
     volumes:
       - ./docker/moneyprinterturbo.config.toml:/MoneyPrinterTurbo/config.toml
       - ./data/moneyprinterturbo:/MoneyPrinterTurbo/storage

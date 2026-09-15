@@ -61,7 +61,7 @@ def test_video_render_maps_browser_loopback_to_compose_service(client, monkeypat
         return {"status": 200, "data": {"task_id": "task-123"}}
 
     monkeypatch.setenv(
-        "MONEYPRINTERTURBO_URL", "http://moneyprinterturbo:8080"
+        "MONEYPRINTERTURBO_URL", "http://moneyprinterturbo:8081"
     )
     monkeypatch.setattr(
         MoneyPrinterTurboClient, "create_video_task", fake_create_video_task
@@ -73,12 +73,12 @@ def test_video_render_maps_browser_loopback_to_compose_service(client, monkeypat
         json={
             "video_script": "测试文案",
             "video_subject": "测试主题",
-            "money_printer_url": "http://localhost:8080",
+            "money_printer_url": "http://localhost:8081",
         },
     )
 
     assert response.status_code == 200
-    assert requested_urls == ["http://moneyprinterturbo:8080"]
+    assert requested_urls == ["http://moneyprinterturbo:8081"]
 
 
 def test_full_publish_flow_with_floor(client):
