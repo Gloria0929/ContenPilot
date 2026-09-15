@@ -35,7 +35,10 @@ base_url 形如 `http://127.0.0.1:8000`，所有路径加 `/api` 前缀。
 | 批量生成 4 版本 + 10 天排期 | `POST /api/pipeline/geo/batch` | 传入 `titles`, `days`（默认 10 天），可选引擎覆盖参数，自动创建各搜索引擎偏好版本与错峰排期任务 |
 | 公众号文章生成与排版 | `POST /api/pipeline/wechat/generate` | 传入 `hotspot`, `theme`（6 种主题），可选引擎参数，返回带内联排版 HTML、300 字贴图文案与封面 Prompt |
 | 短视频口播脚本生成 | `POST /api/pipeline/video/script` | 传入 `hotspot`，可选引擎参数，生成 600 字口播脚本、黄金前 3 秒钩子、分镜清单与封面 Prompt |
-| 提交自动剪辑 | `POST /api/pipeline/video/render` | 向 MoneyPrinterTurbo 服务提交自动剪辑合成任务 |
+| 提交自动剪辑 | `POST /api/pipeline/video/render` | 创建 MoneyPrinterTurbo 后台任务；保存响应中的 `data.task_id`，不要同步等待成片 |
+| 恢复剪辑任务 | `GET /api/pipeline/video/tasks` | 返回最近任务；可选 `page`、`page_size`、`money_printer_url` 查询参数，并从共享卷补回已完成成片 |
+| 查询剪辑任务 | `GET /api/pipeline/video/tasks/{task_id}` | 返回标准化的 `status`、`progress`、`outputs` 与 `download_ready`；建议至少间隔 10 秒轮询 |
+| 下载剪辑成片 | `GET /api/pipeline/video/tasks/{task_id}/download?file=...` | 使用 `outputs[].download_url`，由 Publisher 鉴权并安全读取共享卷中的视频 |
 | 获取今日热点 | `GET /api/pipeline/hotspots` | 可选查询参数 `provider`, `ollama_url`, `ollama_model`。前端会自动做本地持久化缓存，只有用户点击刷新按钮时才触发调用 |
 | AI 生产引擎连通性测试 | `POST /api/pipeline/ai/ping` | 传入可选 `provider`, `openai_base_url`, `openai_api_key`, `ollama_url`，缺省时使用系统全局配置进行探测 |
 | Ollama 服务与模型探测 | `POST /api/pipeline/ollama/ping` | 传入 `url`，探测本地或远程 Ollama 服务连通性并返回已拉取的可用模型列表 |
@@ -45,7 +48,7 @@ base_url 形如 `http://127.0.0.1:8000`，所有路径加 `/api` 前缀。
 | CLI / 功能 | REST API | 说明 |
 |---|---|---|
 | 读取全局设置 | `GET /api/settings` | 读取全局配置（包括 `ai_provider`, `openai_base_url`, `openai_model`, `ollama_base_url`, `ollama_model` 等） |
-| 更新全局设置 | `PUT /api/settings` | 批量保存设置键值对 `{"settings": {"ai_provider": "openai", ...}}` |
+| 更新全局设置 | `POST /api/settings` | 每次保存一个设置项，例如 `{"key": "ai_provider", "value": "ollama"}` |
 
 ### 文章
 
@@ -101,7 +104,7 @@ base_url 形如 `http://127.0.0.1:8000`，所有路径加 `/api` 前缀。
 
 ### 1. 测试 AI 生产引擎连通性
 ```bash
-# 测试 ChatGPT (OpenAI API) 连通性
+# 测试 OpenAI 兼容 API 连通性
 curl -s -X POST "$BASE_URL/api/pipeline/ai/ping" -H "$AUTH" -H "Content-Type: application/json" \
   -d '{"provider": "openai"}'
 
@@ -110,7 +113,7 @@ curl -s -X POST "$BASE_URL/api/pipeline/ollama/ping" -H "$AUTH" -H "Content-Type
   -d '{"url": "http://localhost:11434"}'
 ```
 
-### 2. GEO 批量标题与任务创建（支持指定 Ollama 或 ChatGPT）
+### 2. GEO 批量标题与任务创建（支持指定 Ollama 或 OpenAI 兼容 API）
 ```bash
 # 使用全局默认配置生成 30 篇标题
 curl -s -X POST "$BASE_URL/api/pipeline/geo/titles" -H "$AUTH" -H "Content-Type: application/json" \
@@ -131,8 +134,31 @@ curl -s -X POST "$BASE_URL/api/pipeline/wechat/generate" -H "$AUTH" -H "Content-
   -d '{"hotspot": "Spotify负责人称AI想直接做完工作", "theme": "graphite", "save_to_db": true}'
 ```
 
-### 4. 短视频口播文案生成
+### 4. 短视频口播、后台剪辑与下载
 ```bash
 curl -s -X POST "$BASE_URL/api/pipeline/video/script" -H "$AUTH" -H "Content-Type: application/json" \
   -d '{"hotspot": "AI Agent 让网络攻击自动化"}'
+
+# 创建任务。money_printer_url 可省略，此时使用服务端 MONEYPRINTERTURBO_URL。
+curl -s -X POST "$BASE_URL/api/pipeline/video/render" -H "$AUTH" -H "Content-Type: application/json" \
+  -d '{
+    "video_script": "生成的口播文案...",
+    "video_subject": "AI Agent 让网络攻击自动化",
+    "video_aspect_ratio": "9:16"
+  }'
+
+# 保存上一步 data.task_id；不要保持 POST 请求等待约 10 分钟。
+TASK_ID="2f629337-0db4-46d2-90a3-a911943d9016"
+curl -s "$BASE_URL/api/pipeline/video/tasks/$TASK_ID" -H "$AUTH"
+
+# 也可恢复最近任务；客户端轮询间隔不要短于 10 秒。
+curl -s "$BASE_URL/api/pipeline/video/tasks?page=1&page_size=20" -H "$AUTH"
+
+# status=completed 且 download_ready=true 后，使用 outputs[].download_url 下载。
+curl -L -OJ "$BASE_URL/api/pipeline/video/tasks/$TASK_ID/download?file=output%2Ffinal-1.mp4" -H "$AUTH"
 ```
+
+MoneyPrinterTurbo 的 `/MoneyPrinterTurbo/storage` 与 Publisher 的
+`/data/moneyprinterturbo` 必须挂载到同一个宿主机目录。不要把这些服务器路径返回给
+浏览器；只使用 Publisher 返回的鉴权下载 URL。任务状态临时不可用时保留任务 ID 并
+稍后重试；若任务已完成但 `download_ready=false`，继续轮询等待成片落盘。

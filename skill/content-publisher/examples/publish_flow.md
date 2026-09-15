@@ -3,7 +3,7 @@
 ## 场景 0：AI 生产引擎配置与连通性检测
 
 ```bash
-# 1. 检测 ChatGPT (OpenAI API) 连通性
+# 1. 检测 OpenAI 兼容 API 连通性
 curl -s -X POST "$BASE_URL/api/pipeline/ai/ping" -H "$AUTH" -H "Content-Type: application/json" \
   -d '{"provider": "openai"}'
 
@@ -11,9 +11,13 @@ curl -s -X POST "$BASE_URL/api/pipeline/ai/ping" -H "$AUTH" -H "Content-Type: ap
 curl -s -X POST "$BASE_URL/api/pipeline/ollama/ping" -H "$AUTH" -H "Content-Type: application/json" \
   -d '{"url": "http://localhost:11434"}'
 
-# 3. 设置全局使用 Ollama 驱动内容生成
-curl -s -X PUT "$BASE_URL/api/settings" -H "$AUTH" -H "Content-Type: application/json" \
-  -d '{"settings": {"ai_provider": "ollama", "ollama_base_url": "http://localhost:11434", "ollama_model": "qwen2.5"}}'
+# 3. 设置全局使用 Ollama 驱动内容生成（设置接口每次保存一个键）
+curl -s -X POST "$BASE_URL/api/settings" -H "$AUTH" -H "Content-Type: application/json" \
+  -d '{"key": "ai_provider", "value": "ollama"}'
+curl -s -X POST "$BASE_URL/api/settings" -H "$AUTH" -H "Content-Type: application/json" \
+  -d '{"key": "ollama_base_url", "value": "http://localhost:11434"}'
+curl -s -X POST "$BASE_URL/api/settings" -H "$AUTH" -H "Content-Type: application/json" \
+  -d '{"key": "ollama_model", "value": "qwen2.5"}'
 ```
 
 ## 场景 A：API 平台（cnblogs / wechat_mp）自动发布
@@ -84,12 +88,21 @@ curl -s -X POST "$BASE_URL/api/pipeline/wechat/generate" -H "$AUTH" -H "Content-
 curl -s -X POST "$BASE_URL/api/pipeline/video/script" -H "$AUTH" -H "Content-Type: application/json" \
   -d '{"hotspot": "Google警告AI智能体正在让网络攻击自动化"}'
 
-# 2. 提交至 MoneyPrinterTurbo 接口全自动剪辑合成视频：
+# 2. 创建 MoneyPrinterTurbo 后台剪辑任务；服务地址缺省时使用后端环境变量：
 curl -s -X POST "$BASE_URL/api/pipeline/video/render" -H "$AUTH" -H "Content-Type: application/json" \
   -d '{
     "video_script": "生成的口播文案...",
     "video_subject": "AI黑客自动化攻击时代来临",
-    "video_aspect_ratio": "9:16",
-    "money_printer_url": "http://localhost:8081"
+    "video_aspect_ratio": "9:16"
   }'
+
+# 3. 保存上一步响应中的 data.task_id。任务在服务器后台继续运行，页面可关闭。
+TASK_ID="2f629337-0db4-46d2-90a3-a911943d9016"
+
+# 4. 至少每 10 秒查询一次；刷新后也可先读取任务列表恢复任务。
+curl -s "$BASE_URL/api/pipeline/video/tasks?page=1&page_size=20" -H "$AUTH"
+curl -s "$BASE_URL/api/pipeline/video/tasks/$TASK_ID" -H "$AUTH"
+
+# 5. status=completed 且 download_ready=true 后，使用响应中的 download_url 下载。
+curl -L -OJ "$BASE_URL/api/pipeline/video/tasks/$TASK_ID/download?file=output%2Ffinal-1.mp4" -H "$AUTH"
 ```

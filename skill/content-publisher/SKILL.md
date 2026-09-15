@@ -18,14 +18,17 @@ description: 指导 AI 使用 AI Content Publisher 系统进行内容生成、�
 5. **服务先启动**：发布任务由后台 Worker 执行，需要 `publisher server` 在运行（默认 127.0.0.1:8000）。
 6. **调用方式优先级**：存在 API 配置文件 `~/.contentpilot/api_client.json`（或设置了 `CONTENTPILOT_BASE_URL` 环境变量）时优先走 REST API；否则用本机 CLI。
 7. **AI 生产引擎规范**：
-   - 系统全局支持 **ChatGPT (OpenAI API)** 与 **本地/远程 Ollama** 双引擎。
-   - 默认全局配置在 Web「设置 → AI 生产引擎」或通过 `PUT /api/settings` 保存生效。
+   - 系统支持 **OpenAI 兼容 API** 与 **本地/远程 Ollama**。始终依据当前实际生效的 `ai_provider` 选择客户端、模型和日志名称；当 provider 为 `ollama` 时，不得把请求或错误描述成 ChatGPT。
+   - 默认全局配置在 Web「设置 → AI 生产引擎」或通过 `POST /api/settings` 逐项保存生效。
    - 所有 Pipeline 生成接口支持显式传参（`provider`、`ollama_url`、`ollama_model`）进行临时单次覆盖。
    - 支持通过 `POST /api/pipeline/ai/ping` 或 `POST /api/pipeline/ollama/ping` 测试引擎连通性与拉取可用模型列表。
+   - Content Publisher 的 Ollama 地址使用实例根地址（如 `http://host:11434`）；MoneyPrinterTurbo 的 `ollama_base_url` 使用 OpenAI 兼容地址（通常需以 `/v1` 结尾）。不要把两者的 URL 规则混用。
 8. **内容工坊 (Studio) 交互与数据规范**：
    - **数据持久化防丢失**：工坊内所有表单状态、生成的 GEO 选题列表及勾选状态、公众号排版富文本 HTML 与贴图文案、短视频口播脚本与分镜清单、剪辑参数以及当前选项卡均做本地持久化缓存，页面刷新绝不丢失。
    - **今日热点受控更新**：页面载入或刷新时直接使用已有缓存，绝不自动请求覆盖已有数据；**严格仅在用户显式点击「刷新今日热点」或初次无数据时，才调用接口重新拉取**；刷新网络异常或返回空时保留现有热点。
    - **两侧栏目严格等高**：各大工坊统一采用弹性拉伸（Flex `align-items: stretch`）与基准最小高度，左侧配置与右侧预览/结果卡片严格 1:1 等高，自适应撑满，保持整洁对称。
+9. **自动剪辑是长时后台任务**：`POST /api/pipeline/video/render` 只负责创建任务并返回 `data.task_id`，不得用单个 HTTP 请求同步等待约 10 分钟。保存任务 ID，以不短于 10 秒的间隔查询状态；页面刷新后通过任务列表和本地缓存恢复。任务完成但 `download_ready=false` 时继续查询，直到共享卷中的成片可下载。
+10. **MoneyPrinterTurbo 保持可选**：Content Publisher 与 MoneyPrinterTurbo 可以独立部署和启动。依赖不可达只影响自动剪辑，不应阻塞脚本生成、内容生产或发布能力。成片必须通过 Publisher 的鉴权下载接口交付，不直接向客户端暴露 `/MoneyPrinterTurbo/storage` 或宿主机路径。
 
 ## 业务能力清单
 
@@ -52,11 +55,14 @@ description: 指导 AI 使用 AI Content Publisher 系统进行内容生成、�
 
 ### 3. 短视频策划与自动剪辑出片
 - **短视频脚本策划**：`POST /api/pipeline/video/script`，生成 2 分钟、600 字以内、强冲突、带黄金前 3 秒钩子的口播文案，并附带分镜头素材清单与封面图 Prompt。支持引擎参数覆盖。
-- **一键触发剪辑**：`POST /api/pipeline/video/render`，向项目内置集成的 `MoneyPrinterTurbo` API 服务提交文案、音色与视频比例，全自动合成视频成品并持久化至 `./data/moneyprinterturbo`；同一 Compose 中通过 `docker compose --profile video up -d` 按需启用。
+- **创建后台剪辑任务**：`POST /api/pipeline/video/render`，提交文案、音色与视频比例，成功后记录返回的 UUID 任务 ID。
+- **恢复与查询任务**：`GET /api/pipeline/video/tasks` 获取最近任务；`GET /api/pipeline/video/tasks/{task_id}` 获取标准化的 `status`、`progress`、`outputs` 与 `download_ready`。状态查询暂时失败时保留任务并稍后重试，不把网络闪断误判为生成失败。
+- **安全下载成片**：使用状态响应中 `outputs[].download_url` 下载。Publisher 会从共享卷读取 `tasks/<task_id>` 下的最终视频，并校验 UUID、文件类型与目录边界；不要自行拼接服务器绝对路径。
+- **Compose 存储约定**：MoneyPrinterTurbo 的 `/MoneyPrinterTurbo/storage` 与 Publisher 的 `/data/moneyprinterturbo` 指向同一个宿主机目录 `./data/moneyprinterturbo`。因此 MPT 重启后，即使内存任务状态丢失，已有 `final-*` 或 `combined-*` 成片仍可恢复。
 
 ### 4. AI 生产引擎与全局设置管理
-- **全局配置读取与保存**：`GET /api/settings` 与 `PUT /api/settings`，支持配置 `ai_provider` (`openai` / `ollama`), `openai_api_key`, `openai_base_url`, `openai_model`, `ollama_base_url`, `ollama_model`。
-- **AI 引擎连通性测试**：`POST /api/pipeline/ai/ping`，支持缺省（使用保存配置）或显式传参测试 ChatGPT / Ollama 连接性并返回模型列表。
+- **全局配置读取与保存**：`GET /api/settings` 与 `POST /api/settings`，后者每次提交 `{"key": "...", "value": "..."}`，支持配置 `ai_provider` (`openai` / `ollama`), `openai_api_key`, `openai_base_url`, `openai_model`, `ollama_base_url`, `ollama_model`。
+- **AI 引擎连通性测试**：`POST /api/pipeline/ai/ping`，支持缺省（使用保存配置）或显式传参测试当前 OpenAI 兼容 API / Ollama 连接性并返回模型列表。
 - **Ollama 实例探测**：`POST /api/pipeline/ollama/ping`，检测本地或远程 Ollama 实例状态与已安装模型标签。
 
 ### 5. 文章与任务基础管理
