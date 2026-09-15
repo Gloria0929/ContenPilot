@@ -10,15 +10,17 @@ services:
       - PUBLISHER_SESSION_SECRET=xWnthljAOpIOoK2PDo7EIkAI5dMzEJOWTJ/FSZwSIOs=
       - HEADLESS=false
       - PUBLISHER_HEADLESS=false
-      # AI Provider 配置：优先使用 ChatGPT (OpenAI) / Ollama，避免回落到 Anthropic
-      - PUBLISHER_AI_PROVIDER=${PUBLISHER_AI_PROVIDER:-openai}
+      # AI Provider：当前服务器统一使用 192.168.3.119 上的 Ollama。
+      # 可在项目根目录 .env 中覆盖以下默认值。
+      - PUBLISHER_AI_PROVIDER=${PUBLISHER_AI_PROVIDER:-ollama}
       - PUBLISHER_AI_BASE_URL=${PUBLISHER_AI_BASE_URL:-https://api.openai.com/v1}
-      - PUBLISHER_AI_MODEL=${PUBLISHER_AI_MODEL:-gpt-4o-mini}
+      - PUBLISHER_AI_MODEL=${PUBLISHER_AI_MODEL:-qwen3.8:latest}
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
-      - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+      - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-http://192.168.3.119:11434}
+      - OLLAMA_MODEL=${OLLAMA_MODEL:-qwen3.8:latest}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
-      # MoneyPrinterTurbo API 地址（可选依赖，可通过 .env 覆盖）
-      - MONEYPRINTERTURBO_URL=${MONEYPRINTERTURBO_URL:-http://moneyprinterturbo:8081}
+      # MoneyPrinterTurbo 运行在服务器宿主机，可通过 .env 覆盖。
+      - MONEYPRINTERTURBO_URL=${MONEYPRINTERTURBO_URL:-http://192.168.3.100:8081}
       # 挂载源码优先加载
       - PYTHONPATH=/app/src
     volumes:

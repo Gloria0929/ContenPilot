@@ -265,6 +265,11 @@ MoneyPrinterTurbo API 文档位于 `http://localhost:8081/docs`。正式生成�
 `./data/moneyprinterturbo`。ContentPilot 没有启动该 profile 时仍可正常工作，
 只有“一键触发自动剪辑”功能会因依赖不可达而返回错误。
 
+当前示例配置将 ContentPilot 和 MoneyPrinterTurbo 的内容生成引擎统一设置为
+`http://192.168.3.119:11434` 上的 Ollama，并使用 `qwen3.8:latest`。其中
+MoneyPrinterTurbo 的 `ollama_base_url` 需要包含 `/v1`，且必须同时设置
+`llm_provider = "ollama"`；Ollama 不需要 API Key。
+
 ### 启用 AI 生成能力
 
 `docker-compose.yml` 通过 `${ANTHROPIC_API_KEY:-}` 读取宿主机环境变量，两种方式任选：
@@ -408,7 +413,7 @@ Worker 启动时会自动把遗留的 `processing` 孤儿任务复位回 `queued
 | `PUBLISHER_HEADLESS` | `true` | Playwright 无头模式 |
 | `PUBLISHER_BROWSER_LOGIN_TIMEOUT` | `300` | browser login 等待登录完成超时（秒） |
 | `PUBLISHER_AI_PROVIDER` / `PUBLISHER_AI_MODEL` / `PUBLISHER_AI_BASE_URL` | 见 AI 章节 | AI Provider 配置 |
-| `MONEYPRINTERTURBO_URL` | `http://moneyprinterturbo:8081` | MoneyPrinterTurbo API 地址；同一 Compose 使用服务名，外部部署时可通过 `.env` 覆盖 |
+| `MONEYPRINTERTURBO_URL` | `http://192.168.3.100:8081` | 当前服务器的 MoneyPrinterTurbo API 地址；可通过 `.env` 覆盖 |
 
 ## Web 前端开发
 

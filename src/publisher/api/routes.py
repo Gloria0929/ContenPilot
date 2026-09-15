@@ -904,12 +904,17 @@ async def api_render_video(
     import os
     from ..pipeline import MoneyPrinterTurboClient
 
-    env_url = os.environ.get("MONEYPRINTERTURBO_URL")
-    target_url = payload.money_printer_url or env_url or "http://localhost:8081"
+    env_url = (os.environ.get("MONEYPRINTERTURBO_URL") or "").strip()
+    target_url = (payload.money_printer_url or "").strip() or env_url or "http://localhost:8081"
 
-    # 浏览器界面的 localhost 指向用户电脑，而请求实际由后端发出。在 Compose
-    # 中有明确环境变量时，将回环地址映射到同网络的 MoneyPrinterTurbo 服务。
-    if env_url and urlparse(target_url).hostname in {"localhost", "127.0.0.1", "::1"}:
+    # 请求由后端容器发出。浏览器缓存中的回环地址或旧 Compose 服务名
+    # 对宿主机部署不可用，此时使用服务端环境变量配置。
+    if env_url and urlparse(target_url).hostname in {
+        "localhost",
+        "127.0.0.1",
+        "::1",
+        "moneyprinterturbo",
+    }:
         target_url = env_url
 
     client = MoneyPrinterTurboClient(base_url=target_url)

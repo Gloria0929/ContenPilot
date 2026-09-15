@@ -81,6 +81,7 @@ EDITABLE_SETTINGS = {
         "type": "str",
         "label": "Ollama 模型",
         "description": "已拉取的模型名，如 qwen2.5 / llama3.1 / deepseek-r1。",
-        "fallback": lambda: os.environ.get("OLLAMA_MODEL", "qwen2.5"),
+        "fallback": lambda: os.environ.get("OLLAMA_MODEL")
+        or os.environ.get("OLLAMA_MODEL_NAME", "qwen2.5"),
     },
 }

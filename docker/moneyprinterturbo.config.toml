@@ -12,6 +12,12 @@ api_key = ""
 max_concurrent_tasks = 2
 max_queued_tasks = 20
 
+# MoneyPrinterTurbo 自己的脚本/关键词生成引擎。
+# Ollama 不需要 API Key，但必须显式指定 Provider 和已安装的模型。
+llm_provider = "ollama"
+ollama_base_url = "http://192.168.3.119:11434/v1"
+ollama_model_name = "qwen3.8:latest"
+
 # 默认使用 Pexels 素材。填入 Key 后再提交正式视频任务。
 video_source = "pexels"
 pexels_api_keys = []

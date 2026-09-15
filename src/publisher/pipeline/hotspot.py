@@ -14,9 +14,20 @@ import json
 import logging
 from typing import Any
 
-from ..ai import get_provider
+from ..ai import OllamaProvider, OpenAICompatProvider, get_provider
 
 logger = logging.getLogger(__name__)
+
+
+def _provider_label(provider) -> str:
+    """根据实际 Provider 实例显示引擎，不能根据是否传参猜测。"""
+    model = getattr(provider, "model", "")
+    suffix = f"（模型 {model}）" if model else ""
+    if isinstance(provider, OllamaProvider):
+        return f"Ollama{suffix}"
+    if isinstance(provider, OpenAICompatProvider):
+        return f"OpenAI 兼容服务{suffix}"
+    return f"{provider.__class__.__name__}{suffix}"
 
 
 async def fetch_daily_hotspots(
@@ -50,6 +61,7 @@ async def fetch_daily_hotspots(
     }
     ]
 """
+    engine_label = provider_type or "当前配置的 AI 引擎"
     try:
         # 获取对应的 Provider（ChatGPT 或 本地/远程 Ollama）
         provider = get_provider(
@@ -58,6 +70,8 @@ async def fetch_daily_hotspots(
             model=ollama_model if provider_type == "ollama" else None,
             session=session,
         )
+        engine_label = _provider_label(provider)
+        logger.info("使用 %s 生成最新热点", engine_label)
         raw = await provider.generate(prompt)
 
         clean = raw.strip()
@@ -73,7 +87,6 @@ async def fetch_daily_hotspots(
                     item["id"] = idx + 1
             return items
     except Exception as e:
-        engine_label = f"Ollama ({ollama_url or '默认'})" if provider_type == "ollama" else "ChatGPT"
         logger.warning(f"通过 {engine_label} 抓取最新热点未返回有效结构 ({e})，返回空列表")
         # 默认为空：不再用本地写死的精选热点兜底，前端展示空状态引导配置引擎
         return []

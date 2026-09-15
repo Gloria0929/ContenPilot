@@ -258,6 +258,7 @@ def get_provider(
             model
             or db_ollama_model
             or os.environ.get("OLLAMA_MODEL")
+            or os.environ.get("OLLAMA_MODEL_NAME")
             or os.environ.get("PUBLISHER_AI_MODEL")
             or "qwen2.5"
         )
