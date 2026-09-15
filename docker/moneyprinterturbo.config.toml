@@ -6,8 +6,7 @@ listen_host = "0.0.0.0"
 listen_port = 8081
 
 [app]
-# API 仅发布到宿主机 127.0.0.1，并通过 Compose 私有网络供 ContentPilot 调用。
-# 如果以后需要对外暴露，请配置 api_key，并让 ContentPilot 同步发送 x-api-key。
+# API 监听所有网卡并映射到宿主机 8081；如需跨可信局域网访问，建议配置 api_key。
 api_key = ""
 max_concurrent_tasks = 2
 max_queued_tasks = 20

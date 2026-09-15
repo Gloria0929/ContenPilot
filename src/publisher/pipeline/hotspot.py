@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from typing import Any
 
 from ..ai import OllamaProvider, OpenAICompatProvider, get_provider
@@ -28,6 +29,61 @@ def _provider_label(provider) -> str:
     if isinstance(provider, OpenAICompatProvider):
         return f"OpenAI 兼容服务{suffix}"
     return f"{provider.__class__.__name__}{suffix}"
+
+
+def _parse_hotspot_items(raw: str) -> list[dict[str, Any]]:
+    """解析代码块或夹带说明文字的热点 JSON 数组。"""
+    if not isinstance(raw, str) or not raw.strip():
+        raise ValueError("AI 返回内容为空")
+
+    clean = raw.strip()
+    fenced = re.search(r"```(?:json)?\s*(.*?)```", clean, re.IGNORECASE | re.DOTALL)
+    candidates = [fenced.group(1).strip(), clean] if fenced else [clean]
+    decoder = json.JSONDecoder()
+    last_error: Exception | None = None
+
+    for candidate in candidates:
+        try:
+            data = json.loads(candidate)
+        except json.JSONDecodeError as exc:
+            last_error = exc
+            data = None
+            for match in re.finditer(r"\[", candidate):
+                try:
+                    data, _ = decoder.raw_decode(candidate[match.start():])
+                    break
+                except json.JSONDecodeError as nested_exc:
+                    last_error = nested_exc
+        if not isinstance(data, list):
+            continue
+
+        items: list[dict[str, Any]] = []
+        for item in data:
+            if not isinstance(item, dict):
+                continue
+            if not str(item.get("title") or "").strip() or not str(
+                item.get("summary") or ""
+            ).strip():
+                continue
+            normalized = dict(item)
+            normalized["id"] = normalized.get("id") or len(items) + 1
+            items.append(normalized)
+        if items:
+            return items
+
+    if last_error:
+        raise last_error
+    raise ValueError("AI 返回内容不是有效的热点 JSON 数组")
+
+
+def _repair_prompt(raw: str) -> str:
+    return f"""请将下面内容修复为合法 JSON 数组。
+只修复 JSON 语法和字段结构，不增加事实，不输出 Markdown 或解释。
+每项必须包含 id、title、summary、conflict_point、relevance_angle。
+
+待修复内容：
+{raw[:12000]}
+"""
 
 
 async def fetch_daily_hotspots(
@@ -71,21 +127,18 @@ async def fetch_daily_hotspots(
             session=session,
         )
         engine_label = _provider_label(provider)
-        logger.info("使用 %s 生成最新热点", engine_label)
+        logger.info("使用 %s生成最新热点", engine_label)
         raw = await provider.generate(prompt)
-
-        clean = raw.strip()
-        if "```json" in clean:
-            clean = clean.split("```json", 1)[1].split("```", 1)[0].strip()
-        elif "```" in clean:
-            clean = clean.split("```", 1)[1].split("```", 1)[0].strip()
-        items = json.loads(clean)
-        if isinstance(items, list) and len(items) > 0:
-            # 补齐 id
-            for idx, item in enumerate(items):
-                if not item.get("id"):
-                    item["id"] = idx + 1
-            return items
+        try:
+            return _parse_hotspot_items(raw)
+        except (json.JSONDecodeError, TypeError, ValueError) as first_error:
+            logger.info(
+                "%s首次返回结构无效，使用同一引擎修复 JSON：%s",
+                engine_label,
+                first_error,
+            )
+            repaired = await provider.generate(_repair_prompt(raw))
+            return _parse_hotspot_items(repaired)
     except Exception as e:
         logger.warning(f"通过 {engine_label} 抓取最新热点未返回有效结构 ({e})，返回空列表")
         # 默认为空：不再用本地写死的精选热点兜底，前端展示空状态引导配置引擎
